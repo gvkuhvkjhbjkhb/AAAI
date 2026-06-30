@@ -1,0 +1,50 @@
+第二轮正式实验计划：LLM-FDCR 更长训练与跨环境验证
+
+一、实验目的
+
+第一轮正式实验已经证明 LLM-FDCR 的工程链路可以稳定运行，并且诊断触发的 reward shaping 在 8x8 LBF 上表现出弱提升趋势。第二轮实验的目标是检验该趋势是否能在更长训练步数和更复杂环境上继续出现。为了控制成本，本轮只保留两个关键方法：vanilla MAPPO baseline 与 MAPPO + failure diagnosis + reward shaping。因为第一轮已经证明 fd 仅记录诊断而不改变训练时，其学习曲线与 baseline 完全一致，所以本轮不再重复纯 fd 组。
+
+二、实验矩阵
+
+环境一：lbforaging:Foraging-8x8-2p-2f-coop-v3。
+训练步数：500000 environment timesteps。
+随机种子：1, 2, 3。
+方法：baseline, fd_shaping。
+运行数：2 methods x 3 seeds = 6 runs。
+
+环境二：lbforaging:Foraging-10x10-3p-3f-v3。
+训练步数：300000 environment timesteps。
+随机种子：1, 2, 3。
+方法：baseline, fd_shaping。
+运行数：2 methods x 3 seeds = 6 runs。
+
+总运行数：12 runs。
+
+三、方法定义
+
+baseline 使用 EPyMARL 的 MAPPO，不启用失败诊断。
+
+fd_shaping 使用 MAPPO + heuristic failure diagnosis + reward shaping。诊断器记录低回报失败 episode，生成文本摘要和失败类型，并对失败 episode 施加小幅惩罚，llm_fd_failure_penalty=0.001。该设置与第一轮正式实验保持一致，以便判断更长训练是否增强趋势。
+
+四、预计运行时间
+
+第一轮中 8x8 环境的 200000 timesteps 单 run 约 2.5 分钟。因此 8x8 的 500000 timesteps 单 run 预计约 6-8 分钟，6 runs 预计约 40-50 分钟。10x10 3-agent 环境更慢，300000 timesteps 单 run 预计约 6-10 分钟，6 runs 预计约 40-60 分钟。总预计时间为 80-110 分钟，考虑日志、环境开销和汇总脚本，保守估计 1.5-2 小时完成。
+
+五、主要指标
+
+每个 run 汇总 last_train_return、best_train_return、last_test_return、best_test_return、last_llm_fd_records。对 fd_shaping 额外汇总 failure_records.jsonl 中的 failure type distribution。最终比较每个环境中 baseline 与 fd_shaping 的跨 seed 均值。
+
+六、结果解释标准
+
+如果 fd_shaping 在 8x8 和 10x10 两个环境的 mean best_return 或 mean last_return 上均高于 baseline，则说明诊断触发训练干预具有继续发展的价值。如果 fd_shaping 只提升 best_return 但不提升 last_return，则说明方法能影响探索峰值但稳定性不足。如果 fd_shaping 在 10x10 上无优势，则下一步应优先改进诊断器和 failure-type-specific intervention，而不是继续延长训练。
+
+七、输出目录
+
+Lab 输出目录：/data/lab/epymarl/results/formal_llm_fdcr_round2。
+日志目录：/data/lab/epymarl/results/formal_llm_fdcr_round2/logs。
+汇总文件：summary.txt 与 summary.csv。
+失败轨迹：/data/lab/epymarl/results/llm_fd/*/failure_records.jsonl。
+
+八、GitHub 更新
+
+实验结束后，将更新 GitHub 仓库 https://github.com/gvkuhvkjhbjkhb/AAAI，提交第二轮实验计划、运行脚本、日志、summary.csv、summary.txt、failure_records.jsonl，以及更新后的 EPyMARL 代码目录。
