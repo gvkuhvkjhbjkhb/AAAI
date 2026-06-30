@@ -1,0 +1,69 @@
+Experiment plan: LLM-assisted failure diagnosis and curriculum retraining for MARL
+
+Baseline codebase
+EPyMARL is the baseline. The primary algorithm is MAPPO because it is a standard on-policy cooperative MARL baseline and its rollout batches are convenient for episode-level failure diagnosis. The primary environment family is Level-Based Foraging because its failed trajectories have interpretable coordination failures. PettingZoo MPE simple_spread_v3 is the fallback sanity-check environment.
+
+Research question
+Can a language-model diagnosis module convert failed MARL trajectories into stable semantic failure categories, and can those categories guide retraining decisions that improve coordination or sample efficiency compared with vanilla MAPPO and non-semantic baselines?
+
+Implemented code changes
+1. src/llm_diagnosis/trajectory_recorder.py records low-return episodes and writes JSONL records under results/llm_fd/<run_token>/failure_records.jsonl.
+2. src/llm_diagnosis/trajectory_summarizer.py converts an EpisodeBatch into a compact text summary for diagnosis.
+3. src/llm_diagnosis/failure_classifier.py supports heuristic, mock, and Ollama-backed classifiers.
+4. src/llm_diagnosis/prompts.py defines the fixed failure taxonomy and the JSON-only LLM prompt.
+5. src/run.py now instantiates FailureTrajectoryRecorder and processes each training batch when llm_fd_enabled=True.
+6. src/llm_diagnosis/reward_intervention.py optionally applies diagnosis-triggered reward shaping for intervention ablations.
+7. src/config/algs/mappo_llm_fd.yaml enables the MAPPO failure-diagnosis pipeline.
+
+Failure taxonomy
+target_miscoordination: Agents pursue incompatible targets or fail to converge on the same cooperative target.
+insufficient_cooperation: A task requires multiple agents, but agents act alone or remain split.
+inefficient_exploration: Agents spend substantial time far from useful objectives or revisit unproductive regions.
+low_value_overcommitment: Agents overcommit to low-value objectives and ignore more important cooperative objectives.
+timeout_near_success: Agents approach a successful configuration but coordinate too slowly and time out.
+unknown: The trajectory does not clearly match the fixed taxonomy.
+
+Stage 1: sanity check
+Run vanilla MAPPO and MAPPO with failure diagnosis on a short horizon. The goal is to verify that training runs, failure_records.jsonl is created, and TensorBoard/Sacred logs contain llm_fd_records.
+
+Suggested commands
+python src/main.py --config=mappo --env-config=gymma with env_args.key="pz-mpe-simple-spread-v3" env_args.time_limit=25 t_max=5000 use_cuda=True
+python src/main.py --config=mappo_llm_fd --env-config=gymma with env_args.key="pz-mpe-simple-spread-v3" env_args.time_limit=25 t_max=5000 use_cuda=True llm_fd_classifier="heuristic"
+
+If LBF is installed, replace the env_args.key with the exact LBF Gymnasium id available in the local installation, such as lbforaging:Foraging-8x8-2p-2f-v3 or Foraging-8x8-2p-2f-v3 depending on package registration.
+
+Stage 2: main comparison
+Environment 1: LBF-8x8-2p-2f.
+Environment 2: LBF-10x10-3p-3f.
+Optional Environment 3: PettingZoo MPE simple_spread_v3.
+
+Methods
+MAPPO: vanilla EPyMARL MAPPO.
+MAPPO + random curriculum: sample intervention windows randomly; implement after Stage 1 if time permits.
+MAPPO + return-based hard sampling: use low-return episodes without semantic labels.
+MAPPO + rule-based diagnosis: use llm_fd_classifier=heuristic.
+MAPPO + LLM diagnosis: use llm_fd_classifier=ollama with llm_fd_model set to a local instruct model.
+
+Metrics
+Episode return mean and standard deviation.
+Success rate if the environment provides a success statistic or if llm_fd_success_reward is configured.
+Steps to reach a fixed return threshold.
+Failure type distribution over training.
+Human agreement on 50 to 100 sampled failure records.
+Overhead measured by number of records, classifier mode, and wall-clock time.
+
+Stage 3: curriculum retraining extension
+The current implementation records and diagnoses failed trajectories, logs diagnosis-derived curriculum weights, and optionally applies diagnosis-triggered reward shaping. The safest first version is two-stage retraining: run Stage 2 to collect diagnoses, identify the dominant failure mode, then launch a second MAPPO run with llm_fd_apply_reward_shaping=True and a small terminal bonus or failure penalty. If the environment exposes reset options for layouts, connect src/llm_diagnosis/curriculum_scheduler.py directly to env reset. If it does not, use the logged curriculum weights and reward-shaping ablation as the intervention.
+
+Optional intervention command
+python src/main.py --config=mappo_llm_fd --env-config=gymma with env_args.key="lbforaging:Foraging-8x8-2p-2f-coop-v3" env_args.time_limit=50 common_reward=True t_max=200000 use_cuda=True llm_fd_apply_reward_shaping=True llm_fd_failure_penalty=0.001
+
+Expected paper story
+The baseline MAPPO sees only scalar returns. LLM-FDCR sees failed team trajectories as diagnosable coordination events. The method turns failed episodes into text summaries, assigns fixed semantic failure labels, and uses the label distribution to guide retraining or curriculum design. The core claim is not that LLMs control agents, but that language models can serve as a low-cost training-time diagnostic interface for cooperative MARL.
+
+Reporting checklist
+Report at least three random seeds per method.
+Always include vanilla MAPPO and return-based hard sampling.
+For any LLM result, include heuristic/rule-based diagnosis as a non-LLM control.
+Store prompts, raw summaries, JSON outputs, and failure_records.jsonl for auditability.
+Do not claim causal understanding from the LLM; describe the module as language-based trajectory abstraction and diagnostic categorization.

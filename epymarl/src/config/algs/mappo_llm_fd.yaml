@@ -1,0 +1,42 @@
+# --- MAPPO with LLM-assisted failure diagnosis ---
+
+action_selector: "soft_policies"
+mask_before_softmax: True
+
+runner: "parallel"
+
+buffer_size: 10
+batch_size_run: 10
+batch_size: 10
+
+target_update_interval_or_tau: 0.01
+
+lr: 0.0003
+hidden_dim: 128
+
+obs_agent_id: True
+obs_last_action: False
+obs_individual_obs: False
+
+agent_output_type: "pi_logits"
+learner: "ppo_learner"
+entropy_coef: 0.001
+use_rnn: True
+standardise_returns: False
+standardise_rewards: True
+q_nstep: 5
+critic_type: "cv_critic"
+epochs: 4
+eps_clip: 0.2
+name: "mappo_llm_fd"
+
+t_max: 20050000
+
+llm_fd_enabled: True
+llm_fd_classifier: "heuristic"
+llm_fd_failure_percentile: 30.0
+llm_fd_min_history: 20
+llm_fd_max_records: 500
+llm_fd_apply_reward_shaping: False
+llm_fd_terminal_bonus: 0.0
+llm_fd_failure_penalty: 0.0

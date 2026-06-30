@@ -1,0 +1,78 @@
+正式实验结果汇总：LLM-FDCR on Level-Based Foraging
+
+一、实验配置
+
+代码库：EPyMARL。
+算法：MAPPO。
+环境：lbforaging:Foraging-8x8-2p-2f-coop-v3。
+时间上限：50 steps per episode。
+训练步数：200000 environment timesteps per run。
+随机种子：1, 2, 3。
+总运行数：9 runs。
+实验时间：Tue Jun 30 12:23:32 UTC 2026 至 Tue Jun 30 12:46:12 UTC 2026。
+总耗时：约 22 分 40 秒。
+GPU：RTX 5090，实验中显存占用约 649 MiB。
+
+二、方法对比
+
+baseline：原始 MAPPO，不启用失败诊断。
+
+fd：MAPPO + heuristic failure diagnosis。该方法记录低回报失败轨迹，将轨迹转成文本摘要，并用启发式诊断器分类失败类型；该方法不改变训练奖励或策略更新。
+
+fd_shaping：MAPPO + heuristic failure diagnosis + reward shaping。该方法在 fd 的基础上，对被诊断为失败的 episode 施加小幅失败惩罚，llm_fd_failure_penalty=0.001，用于验证诊断触发干预是否能改变训练动态。
+
+三、逐种子结果
+
+method,seed,last_train_return,best_train_return,last_test_return,best_test_return,last_llm_fd_records
+baseline,1,0.0688,0.2181,0.0688,0.0688,
+baseline,2,0.0063,0.0385,0.0063,0.0063,
+baseline,3,0.1375,0.4903,0.1375,0.1375,
+fd,1,0.0688,0.2181,0.0688,0.0688,1000.0
+fd,2,0.0063,0.0385,0.0063,0.0063,1000.0
+fd,3,0.1375,0.4903,0.1375,0.1375,1000.0
+fd_shaping,1,0.0938,0.2662,0.0938,0.0938,1000.0
+fd_shaping,2,0.0188,0.0718,0.0188,0.0188,1000.0
+fd_shaping,3,0.1000,0.4659,0.1000,0.1000,1000.0
+
+四、均值结果
+
+baseline：mean last_return = 0.0709，mean best_return = 0.2490。
+fd：mean last_return = 0.0709，mean best_return = 0.2490。
+fd_shaping：mean last_return = 0.0709，mean best_return = 0.2680。
+
+fd 与 baseline 完全一致，这是预期结果，因为 fd 只记录和诊断失败轨迹，不改变训练信号。fd_shaping 的平均 best_return 从 0.2490 提高到 0.2680，约 +7.6%。但是 fd_shaping 的平均 last_return 与 baseline 相同，均为 0.0709，说明当前干预带来的收益不稳定。
+
+五、失败诊断分布
+
+A档预实验记录：
+seed1 fd：500 条记录，inefficient_exploration 499，insufficient_cooperation 1。
+seed1 fd_shaping：500 条记录，inefficient_exploration 499，insufficient_cooperation 1。
+
+正式实验记录：
+seed1 fd：1000 条记录，inefficient_exploration 1000。
+seed1 fd_shaping：1000 条记录，inefficient_exploration 1000。
+seed2 fd：1000 条记录，inefficient_exploration 975，insufficient_cooperation 25。
+seed2 fd_shaping：1000 条记录，inefficient_exploration 975，insufficient_cooperation 25。
+seed3 fd：1000 条记录，inefficient_exploration 988，insufficient_cooperation 12。
+seed3 fd_shaping：1000 条记录，inefficient_exploration 987，insufficient_cooperation 13。
+
+六、主要结论
+
+第一，工程链路已经可靠。训练、失败轨迹记录、文本摘要、失败诊断、日志统计、以及诊断触发 reward shaping 都能在 EPyMARL + MAPPO + LBF 上完整运行。
+
+第二，fd 与 baseline 结果一致，说明失败记录和诊断模块在不改变奖励时不会影响 MAPPO 学习过程。这对后续方法论文很重要，因为它表明诊断模块本身不是隐藏的训练干预。
+
+第三，fd_shaping 在 seed 1 和 seed 2 上提高了 best_return 和 last_return，但在 seed 3 上降低了 best_return。因此当前结果只能说明诊断触发干预有弱趋势，尚不能证明稳定显著优于 MAPPO。
+
+第四，当前 heuristic 诊断器过于粗糙，绝大多数失败都被分类为 inefficient_exploration。这意味着当前实验不能代表真正 LLM 诊断的能力。论文下一步必须引入本地 LLM 离线重标注和人工一致性检查。
+
+七、论文层面的解释
+
+当前结果适合作为 feasibility study，而不是最终主结果。它证明了 LLM-FDCR 框架可以接入真实 MARL 训练循环，并且诊断触发干预能改变训练动态。若要形成 AAAI 风格论文，需要进一步证明三点：LLM 诊断比启发式规则更细粒度，failure-type-specific intervention 比统一 penalty 更稳定，多环境多 seed 下能稳定提升样本效率或至少提供可靠可解释性分析。
+
+八、建议下一步实验
+
+1. 对现有 failure_records.jsonl 抽样 300-500 条，用 Qwen2.5-7B-Instruct 或 Llama-3.1-8B-Instruct 进行离线重标注。
+2. 人工检查 50-100 条失败轨迹，报告 LLM 标签与人工标签的一致性。
+3. 将统一 penalty 改为 failure-type-specific intervention，例如 inefficient_exploration 触发探索奖励，insufficient_cooperation 触发协作接近奖励，timeout_near_success 触发终局课程采样。
+4. 将训练步数扩展到 500000，并加入第二环境 lbforaging:Foraging-10x10-3p-3f-v3。

@@ -1,0 +1,54 @@
+正式实验计划：LLM-FDCR 多智能体强化学习失败诊断与再训练
+
+一、实验目标
+
+本轮正式实验的目标不是只验证代码能运行，而是初步回答方向三的核心科学问题：失败轨迹诊断是否能为多智能体强化学习提供额外训练信号，并且这种诊断是否能带来样本效率或训练回报的提升。A档实验已经证明 EPyMARL + MAPPO + LBF 能运行，失败轨迹能保存，诊断统计能写入日志，reward shaping 干预不会破坏训练流程。本轮实验在更长训练步数和多随机种子下比较 vanilla MAPPO、失败诊断记录、以及诊断触发的训练干预。
+
+二、Baseline 与方法
+
+代码库使用 EPyMARL，主算法使用 MAPPO，主环境使用 Level-Based Foraging。训练环境为 lbforaging:Foraging-8x8-2p-2f-coop-v3，时间上限为 50 步。该环境适合作为正式第一轮实验，因为合作采集任务具有明确失败语义，同时单次训练成本较低，可以快速完成多随机种子对比。
+
+本轮比较三种方法。第一种是 baseline，即原始 MAPPO，不启用失败诊断。第二种是 MAPPO + heuristic failure diagnosis，启用失败轨迹记录、文本摘要、启发式失败分类和日志统计，但不改变奖励。第三种是 MAPPO + heuristic failure diagnosis + reward shaping，对被诊断为失败的低回报 episode 施加小幅失败惩罚，用于验证诊断驱动干预是否能改变训练动态。
+
+三、实验矩阵
+
+环境：lbforaging:Foraging-8x8-2p-2f-coop-v3。
+
+训练步数：200000 environment timesteps。
+
+随机种子：1, 2, 3。
+
+方法：
+1. mappo_baseline：--config=mappo。
+2. mappo_fd：--config=mappo_llm_fd，llm_fd_classifier=heuristic。
+3. mappo_fd_shaping：--config=mappo_llm_fd，llm_fd_classifier=heuristic，llm_fd_apply_reward_shaping=True，llm_fd_failure_penalty=0.001。
+
+总训练数：3 methods x 3 seeds = 9 runs。
+
+四、主要指标
+
+训练指标包括 train return mean、train return std、critic loss、policy gradient loss、advantage mean、episode length。测试指标包括 test return mean 和 test return std。诊断指标包括 llm_fd_records、failure type ratio、curriculum failure weights，以及 failure_records.jsonl 中各失败类型的数量分布。
+
+五、判定标准
+
+本轮实验如果 fd_shaping 在 2/3 seeds 上优于 vanilla MAPPO 的 best train return 或 late-stage return，则说明诊断触发干预有继续扩展价值。如果 fd 只记录诊断但不改变奖励，其性能应接近 baseline；这可以证明记录模块本身没有显著破坏训练。如果 fd_shaping 训练回报上升但测试回报仍为 0，则说明当前干预能改变探索但不足以学到稳定策略，需要延长训练或改进干预策略。
+
+六、风险与解释
+
+当前 heuristic 诊断器过于粗糙，A档实验中 99% 以上失败被分类为 inefficient_exploration。因此本轮性能结果只能证明“诊断触发干预”的工程可行性和初步趋势，不能代表真正 LLM 诊断的能力。正式论文需要在后续加入本地 LLM 离线重标注，例如 Qwen2.5-7B-Instruct 或 Llama-3.1-8B-Instruct，并加入人工抽查 50-100 条失败轨迹。
+
+七、实验输出
+
+Lab 输出目录为 /data/lab/epymarl/results/formal_llm_fdcr_8x8。
+
+每个 run 的控制台日志保存到 logs/<method>_seed<seed>.log。
+
+每个 run 的 Sacred 输出保存到 EPyMARL 默认 results/sacred 目录。
+
+失败诊断记录保存到 results/llm_fd/<run_token>/failure_records.jsonl。
+
+汇总结果将保存到 results/formal_llm_fdcr_8x8/summary.txt 和 results/formal_llm_fdcr_8x8/summary.csv。
+
+八、后续扩展
+
+如果本轮实验趋势积极，下一步扩展到 500000 timesteps 和第二环境 lbforaging:Foraging-10x10-3p-3f-v3。如果本轮趋势不明显，则先暂停扩展训练，优先改进诊断模块，引入本地 LLM 离线诊断和更细粒度失败分类，再重新跑 200000 timesteps。
