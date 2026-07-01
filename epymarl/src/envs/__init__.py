@@ -3,7 +3,11 @@ import sys
 
 from .multiagentenv import MultiAgentEnv
 from .gymma import GymmaWrapper
-from .smaclite_wrapper import SMACliteWrapper
+
+try:
+    from .smaclite_wrapper import SMACliteWrapper
+except ModuleNotFoundError:
+    SMACliteWrapper = None
 
 
 if sys.platform == "linux":
@@ -24,6 +28,10 @@ def __check_and_prepare_smac_kwargs(kwargs):
 
 
 def smaclite_fn(**kwargs) -> MultiAgentEnv:
+    if SMACliteWrapper is None:
+        raise ModuleNotFoundError(
+            "SMAClite is not installed; install it before using --env-config=smaclite."
+        )
     kwargs = __check_and_prepare_smac_kwargs(kwargs)
     return SMACliteWrapper(**kwargs)
 
