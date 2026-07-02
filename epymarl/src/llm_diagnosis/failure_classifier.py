@@ -1,6 +1,8 @@
 import json
 import os
 import subprocess
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 
 from .prompts import FAILURE_TYPES, build_failure_prompt
@@ -29,6 +31,8 @@ class FailureClassifier:
         self.timeout = timeout
 
     def classify(self, summary):
+        if self.mode in {"api", "openai_compatible"}:
+            return self._classify_with_openai_compatible(summary)
         if self.mode == "ollama":
             return self._classify_with_ollama(summary)
         if self.mode == "mock":
@@ -133,6 +137,49 @@ class FailureClassifier:
                 "ollama_error",
             )
         return self._parse_json(result.stdout)
+
+    def _classify_with_openai_compatible(self, summary):
+        api_key = os.environ.get("LLM_FD_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        base_url = os.environ.get("LLM_FD_API_BASE", "https://api.openai.com/v1").rstrip("/")
+        model = self.model or os.environ.get("LLM_FD_MODEL", "Qwen3.5-4B")
+        if not api_key:
+            return FailureDiagnosis(
+                "unknown",
+                0.0,
+                "OpenAI-compatible classifier requires LLM_FD_API_KEY or OPENAI_API_KEY.",
+                "api_error",
+            )
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": "Return valid JSON only."},
+                {"role": "user", "content": build_failure_prompt(summary)},
+            ],
+            "temperature": float(os.environ.get("LLM_FD_TEMPERATURE", "0")),
+            "top_p": float(os.environ.get("LLM_FD_TOP_P", "1")),
+            "max_tokens": int(os.environ.get("LLM_FD_MAX_TOKENS", "160")),
+        }
+        request = urllib.request.Request(
+            f"{base_url}/chat/completions",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                body = response.read().decode("utf-8", errors="ignore")
+        except urllib.error.URLError as exc:
+            return FailureDiagnosis("unknown", 0.0, f"API failed: {exc}", "api_error")
+        try:
+            raw = json.loads(body)["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError, json.JSONDecodeError):
+            return FailureDiagnosis("unknown", 0.0, body[:300], "api_parse_error")
+        diagnosis = self._parse_json(raw)
+        diagnosis.source = "api"
+        return diagnosis
 
     def _parse_json(self, raw_text):
         start = raw_text.find("{")

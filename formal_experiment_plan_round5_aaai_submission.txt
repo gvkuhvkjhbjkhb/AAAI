@@ -1,0 +1,37 @@
+Round 5 AAAI submission-grade experiment plan for LLM-FDCR
+
+Goal
+
+Round 5 should convert the current feasibility evidence into a defensible AAAI main-track claim. The existing evidence shows that failure-triggered reward shaping can help MAPPO, but it also shows that fixed penalties are scale-sensitive and that the current diagnosis labels have not been validated against human judgment. The next experiments therefore prioritize statistical power, type-specific intervention, diagnosis validity, and one harder generalization task rather than simply extending training.
+
+Primary claim to test
+
+Multi-agent failures are heterogeneous, so treating every failed episode with the same penalty is suboptimal. LLM-FDCR should diagnose failure modes from trajectory summaries and convert them into calibrated failure-type-specific interventions that improve final return, sample efficiency, and stability over MAPPO and over the best uniform penalty.
+
+Round 5A: penalty refinement on 10x10
+
+Environment: lbforaging:Foraging-10x10-3p-3f-v3. Training budget: 500000 timesteps. Seeds: 1-8. Methods: baseline, uniform penalties 0.0001, 0.0002, 0.0003, 0.0005, 0.0007, and 0.001. The purpose is to show whether the middle penalty range is stable across seeds rather than a seed-1-to-3 accident. This experiment is supportive rather than the paper's central novelty; if 0.0002-0.0005 consistently beat baseline and 0.001 degrades final return, the paper can state that failure-guided intervention has a calibrated effective range.
+
+Round 5B: type-specific intervention on 10x10
+
+Environment: lbforaging:Foraging-10x10-3p-3f-v3. Training budget: 500000 timesteps. Seeds: 1-8. Methods: baseline, diagnosis_only, uniform_0.0003, type_specific_0.0003, adaptive_0.0003, and random_type_0.0003. The acceptance criterion for an AAAI-ready main result is that type_specific_0.0003 or adaptive_0.0003 improves mean last_test_return, best_train_return, train_auc, and stability gap over both baseline and uniform_0.0003, with paired seed differences whose 95 percent bootstrap confidence intervals are mostly positive for last_test_return and train_auc. random_type_0.0003 must not match the best diagnosis-conditioned method; otherwise the failure labels are not carrying useful semantics.
+
+Round 5C: harder LBF generalization
+
+Environment: lbforaging:Foraging-12x12-3p-4f-v3 by default. If the environment key is unavailable on Lab, use lbforaging:Foraging-10x10-3p-4f-v3, and report the substitution explicitly. Training budget: 500000 timesteps. Seeds: 1-5 initially, extended to 1-8 if the 10x10 main result is positive. Methods: baseline, uniform_0.0003, type_specific_0.0003, and adaptive_0.0003. The goal is not to tune a new penalty for this environment, but to test whether the calibrated 10x10 intervention transfers to a harder cooperative task.
+
+Round 5D: diagnosis quality validation
+
+Data: 300 sampled failure records from results/llm_fd/*/failure_records.jsonl. Human labels: at least 200 records, preferably 300, using the fixed taxonomy in epymarl/src/llm_diagnosis/prompts.py. Automated labelers: original heuristic, enhanced heuristic, and Qwen3.5-4B through an OpenAI-compatible chat completion endpoint. Metrics: accuracy, macro-F1, confusion matrix, per-class support, Cohen's kappa, and pairwise agreement. This experiment is mandatory before claiming that the method uses meaningful LLM diagnosis. If human labels are unavailable, the paper must downgrade the claim to diagnosis-guided heuristic shaping and cannot assert LLM diagnostic accuracy.
+
+Metrics and reporting
+
+Each run must report mean plus standard deviation across seeds, 95 percent bootstrap confidence intervals, paired seed differences against baseline, last_train_return, best_train_return, last_test_return, best_test_return, train AUC, stability gap, and final failure-record count. The primary metric should be last_test_return, with train AUC as the sample-efficiency metric and stability gap as the robustness metric. best_train_return is useful mechanistic evidence, but it should not be the sole success criterion because prior results show peak improvements without stable final gains.
+
+Submission threshold
+
+The work becomes AAAI-submission-ready if the following conditions hold: adaptive or type-specific intervention beats baseline and uniform penalty on 10x10 across at least eight seeds; the same method beats baseline on the harder LBF generalization task across at least five seeds; Qwen3.5-4B or the enhanced diagnostic pipeline improves macro-F1 over the original heuristic on human labels; and random-type control is clearly worse than type-specific intervention. If only uniform penalty wins, the paper should pivot to calibrated failure-triggered shaping rather than LLM diagnosis. If diagnosis quality is weak, keep the LLM component as analysis only and avoid central claims about reasoning.
+
+Runnable scripts
+
+Run all commands from the repository root. Use run_round4_penalty_refinement.sh for Round 5A, run_round4_type_specific.sh for Round 5B, run_round4_generalization.sh for Round 5C, and run_round4_diagnosis_quality.sh for Round 5D. These scripts now emit summary.csv and summary.txt with AUC, stability gap, standard deviation, 95 percent bootstrap confidence intervals, and paired seed differences.

@@ -153,7 +153,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input-glob", default="results/llm_fd/*/failure_records.jsonl")
     parser.add_argument("--output-dir", default="results/offline_relabel")
-    parser.add_argument("--mode", default="enhanced_heuristic", choices=["enhanced_heuristic", "ollama", "hf", "mock", "heuristic"])
+    parser.add_argument("--mode", default="enhanced_heuristic", choices=["enhanced_heuristic", "ollama", "hf", "api", "openai_compatible", "mock", "heuristic"])
     parser.add_argument("--model", default="")
     parser.add_argument("--sample-size", type=int, default=1000)
     parser.add_argument("--seed", type=int, default=0)
@@ -170,7 +170,7 @@ def main():
     classifier = None
     if args.mode == "hf":
         classifier = HFClassifier(args.model or "Qwen/Qwen2.5-0.5B-Instruct")
-    elif args.mode in {"ollama", "mock", "heuristic"}:
+    elif args.mode in {"ollama", "api", "openai_compatible", "mock", "heuristic"}:
         classifier = FailureClassifier(mode=args.mode, model=args.model)
 
     human_labels = load_human_labels(args.human_labels)

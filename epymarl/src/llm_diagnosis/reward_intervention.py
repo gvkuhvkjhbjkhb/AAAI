@@ -9,13 +9,20 @@ class FailureRewardIntervention:
         self.mode = getattr(args, "llm_fd_intervention_mode", "uniform")
         self.t_max = float(getattr(args, "t_max", 1.0))
         self.confidence_floor = float(getattr(args, "llm_fd_confidence_floor", 0.40))
+        self.confidence_reference = float(getattr(args, "llm_fd_confidence_reference", 0.62))
+        self.confidence_min_multiplier = float(getattr(args, "llm_fd_confidence_min_multiplier", 0.70))
+        self.confidence_max_multiplier = float(getattr(args, "llm_fd_confidence_max_multiplier", 1.30))
+        self.early_phase_weight = float(getattr(args, "llm_fd_early_phase_weight", 0.50))
+        self.middle_phase_weight = float(getattr(args, "llm_fd_middle_phase_weight", 1.00))
+        self.late_phase_weight = float(getattr(args, "llm_fd_late_phase_weight", 0.30))
+        self.random_type_use_phase = bool(getattr(args, "llm_fd_random_type_use_phase", False))
         self.type_weights = {
-            "inefficient_exploration": float(getattr(args, "llm_fd_weight_inefficient_exploration", 1.60)),
-            "target_miscoordination": float(getattr(args, "llm_fd_weight_target_miscoordination", 1.80)),
-            "insufficient_cooperation": float(getattr(args, "llm_fd_weight_insufficient_cooperation", 1.50)),
-            "low_value_overcommitment": float(getattr(args, "llm_fd_weight_low_value_overcommitment", 2.00)),
+            "inefficient_exploration": float(getattr(args, "llm_fd_weight_inefficient_exploration", 0.80)),
+            "target_miscoordination": float(getattr(args, "llm_fd_weight_target_miscoordination", 1.20)),
+            "insufficient_cooperation": float(getattr(args, "llm_fd_weight_insufficient_cooperation", 1.10)),
+            "low_value_overcommitment": float(getattr(args, "llm_fd_weight_low_value_overcommitment", 1.40)),
             "timeout_near_success": float(getattr(args, "llm_fd_weight_timeout_near_success", 0.00)),
-            "unknown": float(getattr(args, "llm_fd_weight_unknown", 1.00)),
+            "unknown": float(getattr(args, "llm_fd_weight_unknown", 0.80)),
         }
 
     def apply(self, episode_batch, diagnoses, t_env=0):
@@ -48,10 +55,16 @@ class FailureRewardIntervention:
         if self.mode not in {"adaptive", "type_specific"}:
             return self.failure_penalty
         failure_type = getattr(diagnosis, "failure_type", "unknown")
-        confidence = max(self.confidence_floor, float(getattr(diagnosis, "confidence", self.confidence_floor)))
+        confidence = self._confidence_multiplier(diagnosis)
         type_weight = self.type_weights.get(failure_type, self.type_weights["unknown"])
         phase_weight = self._phase_weight(t_env) if self.mode == "adaptive" else 1.0
         return self.failure_penalty * confidence * type_weight * phase_weight
+
+    def _confidence_multiplier(self, diagnosis):
+        confidence = max(self.confidence_floor, float(getattr(diagnosis, "confidence", self.confidence_floor)))
+        reference = max(self.confidence_floor, self.confidence_reference)
+        multiplier = confidence / reference
+        return min(self.confidence_max_multiplier, max(self.confidence_min_multiplier, multiplier))
 
     def _terminal_bonus(self, diagnosis):
         if self.terminal_bonus == 0.0:
@@ -65,10 +78,10 @@ class FailureRewardIntervention:
     def _phase_weight(self, t_env):
         progress = float(t_env) / max(1.0, self.t_max)
         if progress < 0.20:
-            return 0.50
+            return self.early_phase_weight
         if progress < 0.70:
-            return 1.00
-        return 0.30
+            return self.middle_phase_weight
+        return self.late_phase_weight
 
 
 class RandomTypeFailureRewardIntervention(FailureRewardIntervention):
@@ -80,8 +93,9 @@ class RandomTypeFailureRewardIntervention(FailureRewardIntervention):
         if self.failure_penalty == 0.0 or diagnosis is None:
             return self.failure_penalty
         failure_type = self._sample_type(getattr(diagnosis, "evidence", ""), t_env)
-        confidence = max(self.confidence_floor, float(getattr(diagnosis, "confidence", self.confidence_floor)))
-        return self.failure_penalty * confidence * self.type_weights.get(failure_type, self.type_weights["unknown"])
+        confidence = self._confidence_multiplier(diagnosis)
+        phase_weight = self._phase_weight(t_env) if self.random_type_use_phase else 1.0
+        return self.failure_penalty * confidence * self.type_weights.get(failure_type, self.type_weights["unknown"]) * phase_weight
 
     def _terminal_bonus(self, diagnosis):
         if self.terminal_bonus == 0.0 or diagnosis is None:
