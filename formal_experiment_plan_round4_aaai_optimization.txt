@@ -1,0 +1,54 @@
+Round 4 AAAI-oriented optimization plan for LLM-FDCR
+
+Goal
+
+The first three rounds establish feasibility, show a positive 8x8 signal, and identify a useful 10x10 reward-shaping scale around penalty=0.0003. Round 4 turns that observation into a stronger AAAI-style claim by testing whether diagnosis-conditioned interventions outperform both MAPPO and the best uniform penalty baseline.
+
+Core hypothesis
+
+Failure-guided intervention should not treat all low-return episodes identically. A calibrated intervention that uses failure type, diagnosis confidence, and training phase should improve final return, peak return, and stability over a fixed uniform penalty.
+
+Primary experiment: 10x10 type-specific intervention
+
+Environment: lbforaging:Foraging-10x10-3p-3f-v3.
+Training budget: 500000 environment timesteps per run.
+Seeds: 1, 2, 3, 4, 5.
+Methods:
+1. baseline: MAPPO without failure diagnosis.
+2. diagnosis_only: MAPPO with enhanced_heuristic diagnosis, no reward shaping.
+3. uniform_0.0003: previous best fixed penalty setting.
+4. type_specific_0.0003: enhanced_heuristic diagnosis with failure-type weights.
+5. adaptive_0.0003: type-specific intervention plus phase schedule.
+6. random_type_0.0003: random type assignment control with the same intervention magnitudes.
+
+Interpretation criterion
+
+The method is AAAI-viable only if adaptive_0.0003 or type_specific_0.0003 improves mean last/test return and AUC over both baseline and uniform_0.0003 across at least five seeds. random_type_0.0003 must not match the type-specific method; otherwise the label semantics are not doing useful work.
+
+Secondary experiment: penalty refinement
+
+Environment: lbforaging:Foraging-10x10-3p-3f-v3.
+Training budget: 500000 environment timesteps per run.
+Seeds: 4, 5, and optionally 6, 7, 8, reusing seeds 1-3 from Round 3 for baseline, 0.0001, 0.0003, and 0.001.
+Additional penalties: 0.0002, 0.0005, 0.0007.
+Purpose: show that there is a stable middle penalty range rather than a one-off lucky setting.
+
+Generalization experiment
+
+Environment: lbforaging:Foraging-12x12-3p-4f-v3 if available; otherwise lbforaging:Foraging-10x10-3p-4f-v3.
+Training budget: 500000 environment timesteps per run.
+Seeds: 1, 2, 3, 4, 5.
+Methods: baseline, uniform_0.0003, adaptive_0.0003.
+Purpose: demonstrate that the method is not overfit to one LBF map.
+
+Diagnosis quality experiment
+
+Sample 200-300 records from results/offline_relabel_tuning/audit_sample.csv and manually label human_label. Compare original heuristic, enhanced heuristic, and any available local/inference LLM using accuracy, macro-F1, and confusion matrix. This is required before making claims about LLM diagnosis quality.
+
+Metrics
+
+For every method, report mean, standard deviation, 95 percent bootstrap confidence interval, last return, best return, AUC over logged return_mean, and stability gap best_train_return - last_train_return. Use paired seed comparisons where methods share seeds, and report bootstrap or Wilcoxon tests rather than relying on raw averages.
+
+Expected outcome
+
+If adaptive_0.0003 beats uniform_0.0003, the paper can argue that failure labels provide actionable information beyond tuning a reward penalty. If uniform_0.0003 remains best, the paper should pivot to calibrated failure-triggered shaping and present type-specific intervention as a negative ablation.

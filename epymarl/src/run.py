@@ -199,15 +199,19 @@ def run_sequential(args, logger):
     logger.console_logger.info("Beginning training for {} timesteps".format(args.t_max))
     fd_recorder = FailureTrajectoryRecorder(args, logger)
     fd_curriculum = FailureAwareCurriculum()
-    fd_reward_intervention = FailureRewardIntervention(args)
+    if getattr(args, "llm_fd_intervention_mode", "uniform") == "random_type":
+        from llm_diagnosis.reward_intervention import RandomTypeFailureRewardIntervention
+
+        fd_reward_intervention = RandomTypeFailureRewardIntervention(args)
+    else:
+        fd_reward_intervention = FailureRewardIntervention(args)
 
     while runner.t_env <= args.t_max:
         # Run for a whole episode at a time
         episode_batch = runner.run(test_mode=False)
         fd_diagnoses = fd_recorder.process_batch(episode_batch, runner.t_env, episode)
         fd_curriculum.update(fd_diagnoses)
-        diagnosed_indices = [idx for idx, _diagnosis in fd_diagnoses]
-        episode_batch = fd_reward_intervention.apply(episode_batch, diagnosed_indices)
+        episode_batch = fd_reward_intervention.apply(episode_batch, fd_diagnoses, runner.t_env)
         buffer.insert_episode_batch(episode_batch)
 
         if buffer.can_sample(args.batch_size):

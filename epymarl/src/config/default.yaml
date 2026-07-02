@@ -57,7 +57,7 @@ hypergroup: null
 
 # --- LLM-assisted failure diagnosis options ---
 llm_fd_enabled: False
-llm_fd_classifier: "heuristic" # heuristic | mock | ollama
+llm_fd_classifier: "heuristic" # heuristic | enhanced_heuristic | mock | ollama
 llm_fd_model: "" # e.g., qwen2.5:7b when llm_fd_classifier=ollama
 llm_fd_timeout: 60
 llm_fd_failure_percentile: 30.0
@@ -67,3 +67,11 @@ llm_fd_success_reward: null
 llm_fd_apply_reward_shaping: False
 llm_fd_terminal_bonus: 0.0
 llm_fd_failure_penalty: 0.0
+llm_fd_intervention_mode: "uniform" # uniform | type_specific | adaptive | random_type
+llm_fd_confidence_floor: 0.40
+llm_fd_weight_inefficient_exploration: 1.60
+llm_fd_weight_target_miscoordination: 1.80
+llm_fd_weight_insufficient_cooperation: 1.50
+llm_fd_weight_low_value_overcommitment: 2.00
+llm_fd_weight_timeout_near_success: 0.00
+llm_fd_weight_unknown: 1.00
