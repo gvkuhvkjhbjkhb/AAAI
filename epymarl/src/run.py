@@ -199,10 +199,15 @@ def run_sequential(args, logger):
     logger.console_logger.info("Beginning training for {} timesteps".format(args.t_max))
     fd_recorder = FailureTrajectoryRecorder(args, logger)
     fd_curriculum = FailureAwareCurriculum()
-    if getattr(args, "llm_fd_intervention_mode", "uniform") == "random_type":
+    intervention_mode = getattr(args, "llm_fd_intervention_mode", "uniform")
+    if intervention_mode == "random_type":
         from llm_diagnosis.reward_intervention import RandomTypeFailureRewardIntervention
 
         fd_reward_intervention = RandomTypeFailureRewardIntervention(args)
+    elif intervention_mode == "random_type_matched":
+        from llm_diagnosis.reward_intervention import MatchedRandomTypeFailureRewardIntervention
+
+        fd_reward_intervention = MatchedRandomTypeFailureRewardIntervention(args)
     else:
         fd_reward_intervention = FailureRewardIntervention(args)
 

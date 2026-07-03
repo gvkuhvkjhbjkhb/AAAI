@@ -16,6 +16,8 @@ class FailureRewardIntervention:
         self.middle_phase_weight = float(getattr(args, "llm_fd_middle_phase_weight", 1.00))
         self.late_phase_weight = float(getattr(args, "llm_fd_late_phase_weight", 0.30))
         self.random_type_use_phase = bool(getattr(args, "llm_fd_random_type_use_phase", False))
+        self.semantic_gate_threshold = float(getattr(args, "llm_fd_semantic_gate_threshold", 0.55))
+        self.semantic_gate_fallback_weight = float(getattr(args, "llm_fd_semantic_gate_fallback_weight", 1.0))
         self.type_weights = {
             "inefficient_exploration": float(getattr(args, "llm_fd_weight_inefficient_exploration", 0.80)),
             "target_miscoordination": float(getattr(args, "llm_fd_weight_target_miscoordination", 1.20)),
@@ -52,12 +54,15 @@ class FailureRewardIntervention:
             return 0.0
         if self.mode == "uniform" or diagnosis is None:
             return self.failure_penalty
-        if self.mode not in {"adaptive", "type_specific"}:
+        if self.mode not in {"adaptive", "type_specific", "semantic_gate"}:
             return self.failure_penalty
         failure_type = getattr(diagnosis, "failure_type", "unknown")
+        raw_confidence = float(getattr(diagnosis, "confidence", self.confidence_floor))
         confidence = self._confidence_multiplier(diagnosis)
+        if self.mode == "semantic_gate" and raw_confidence < self.semantic_gate_threshold:
+            return self.failure_penalty * confidence * self.semantic_gate_fallback_weight * self._phase_weight(t_env)
         type_weight = self.type_weights.get(failure_type, self.type_weights["unknown"])
-        phase_weight = self._phase_weight(t_env) if self.mode == "adaptive" else 1.0
+        phase_weight = self._phase_weight(t_env) if self.mode in {"adaptive", "semantic_gate"} else 1.0
         return self.failure_penalty * confidence * type_weight * phase_weight
 
     def _confidence_multiplier(self, diagnosis):
@@ -109,3 +114,53 @@ class RandomTypeFailureRewardIntervention(FailureRewardIntervention):
         key = f"{evidence}|{t_env}".encode("utf-8", errors="ignore")
         index = int(hashlib.md5(key).hexdigest(), 16) % len(self._failure_types)
         return self._failure_types[index]
+
+
+class MatchedRandomTypeFailureRewardIntervention(FailureRewardIntervention):
+    def __init__(self, args):
+        super().__init__(args)
+        self._observed_types = []
+        self._max_pool = int(getattr(args, "llm_fd_matched_random_pool", 10000))
+
+    def apply(self, episode_batch, diagnoses, t_env=0):
+        if not self.enabled or not diagnoses:
+            return episode_batch
+        current_types = [
+            getattr(item[1] if isinstance(item, tuple) else None, "failure_type", "unknown")
+            for item in diagnoses
+        ]
+        pool = self._observed_types or current_types or ["unknown"]
+        rewards = episode_batch.data.transition_data["reward"]
+        filled = episode_batch.data.transition_data["filled"]
+        for item in diagnoses:
+            if isinstance(item, tuple):
+                batch_idx, diagnosis = item
+            else:
+                batch_idx, diagnosis = item, None
+            valid = filled[batch_idx, :, 0].nonzero(as_tuple=False)
+            if valid.numel() == 0:
+                continue
+            terminal_t = int(valid[-1].item())
+            if diagnosis is None:
+                penalty = self.failure_penalty
+                terminal_bonus = 0.0
+            else:
+                failure_type = self._sample_from_pool(pool, diagnosis, t_env, batch_idx)
+                confidence = self._confidence_multiplier(diagnosis)
+                phase_weight = self._phase_weight(t_env) if self.random_type_use_phase else 1.0
+                penalty = self.failure_penalty * confidence * self.type_weights.get(failure_type, self.type_weights["unknown"]) * phase_weight
+                terminal_bonus = self.terminal_bonus if failure_type == "timeout_near_success" else 0.0
+            if penalty != 0.0:
+                rewards[batch_idx, : terminal_t + 1] -= penalty
+            if terminal_bonus != 0.0:
+                rewards[batch_idx, terminal_t] += terminal_bonus
+        self._observed_types.extend(current_types)
+        if len(self._observed_types) > self._max_pool:
+            self._observed_types = self._observed_types[-self._max_pool :]
+        return episode_batch
+
+    def _sample_from_pool(self, pool, diagnosis, t_env, batch_idx):
+        evidence = getattr(diagnosis, "evidence", "")
+        key = f"{evidence}|{t_env}|{batch_idx}|matched".encode("utf-8", errors="ignore")
+        index = int(hashlib.md5(key).hexdigest(), 16) % len(pool)
+        return pool[index]
