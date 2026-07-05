@@ -1,8 +1,11 @@
+import hashlib
 import json
 import os
 import subprocess
+import time
 import urllib.error
 import urllib.request
+from pathlib import Path
 from dataclasses import dataclass
 
 from .prompts import FAILURE_TYPES, build_failure_prompt
@@ -139,6 +142,48 @@ class FailureClassifier:
         return self._parse_json(result.stdout)
 
     def _classify_with_openai_compatible(self, summary):
+        cache_path = os.environ.get("LLM_FD_CACHE_PATH", "").strip()
+        cache_key = None
+        if cache_path:
+            model_name = self.model or os.environ.get("LLM_FD_MODEL", "Qwen3.5-4B")
+            cache_key = hashlib.sha256(f"{model_name}\n{summary}".encode("utf-8", errors="ignore")).hexdigest()
+            cached = self._read_cache(cache_path, cache_key)
+            if cached is not None:
+                return cached
+        diagnosis = self._classify_with_openai_compatible_uncached(summary)
+        if cache_path and cache_key and diagnosis.source not in {"api_error", "api_parse_error", "parse_error"}:
+            self._write_cache(cache_path, cache_key, diagnosis)
+        return diagnosis
+
+    def _read_cache(self, cache_path, cache_key):
+        path = Path(cache_path)
+        if not path.exists():
+            return None
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            item = payload.get(cache_key)
+            if not item:
+                return None
+            failure_type = item.get("failure_type", "unknown")
+            if failure_type not in FAILURE_TYPES:
+                failure_type = "unknown"
+            return FailureDiagnosis(failure_type, float(item.get("confidence", 0.0)), str(item.get("evidence", ""))[:500], "api_cache")
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            return None
+
+    def _write_cache(self, cache_path, cache_key, diagnosis):
+        path = Path(cache_path)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            payload = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+            payload[cache_key] = diagnosis.to_dict()
+            tmp = path.with_suffix(path.suffix + ".tmp")
+            tmp.write_text(json.dumps(payload, ensure_ascii=True, sort_keys=True), encoding="utf-8")
+            tmp.replace(path)
+        except (OSError, TypeError, ValueError):
+            return
+
+    def _classify_with_openai_compatible_uncached(self, summary):
         api_key = os.environ.get("LLM_FD_API_KEY") or os.environ.get("OPENAI_API_KEY")
         base_url = os.environ.get("LLM_FD_API_BASE", "https://api.openai.com/v1").rstrip("/")
         model = self.model or os.environ.get("LLM_FD_MODEL", "Qwen3.5-4B")
@@ -170,11 +215,21 @@ class FailureClassifier:
             },
             method="POST",
         )
-        try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                body = response.read().decode("utf-8", errors="ignore")
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            return FailureDiagnosis("unknown", 0.0, f"API failed: {exc}", "api_error")
+        retries = max(1, int(os.environ.get("LLM_FD_API_RETRIES", "3")))
+        retry_sleep = max(0.0, float(os.environ.get("LLM_FD_API_RETRY_SLEEP", "2")))
+        body = ""
+        last_error = None
+        for attempt in range(retries):
+            try:
+                with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                    body = response.read().decode("utf-8", errors="ignore")
+                break
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                last_error = exc
+                if attempt + 1 < retries:
+                    time.sleep(retry_sleep * (attempt + 1))
+        if not body:
+            return FailureDiagnosis("unknown", 0.0, f"API failed: {last_error}", "api_error")
         try:
             raw = json.loads(body)["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError, json.JSONDecodeError):

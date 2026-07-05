@@ -54,6 +54,8 @@ class FailureRewardIntervention:
             return 0.0
         if self.mode == "uniform" or diagnosis is None:
             return self.failure_penalty
+        if self.mode == "phase_uniform":
+            return self.failure_penalty * self._phase_weight(t_env)
         if self.mode not in {"adaptive", "type_specific", "semantic_gate"}:
             return self.failure_penalty
         failure_type = getattr(diagnosis, "failure_type", "unknown")
