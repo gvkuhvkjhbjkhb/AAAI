@@ -159,6 +159,8 @@ class FailureClassifier:
             "top_p": float(os.environ.get("LLM_FD_TOP_P", "1")),
             "max_tokens": int(os.environ.get("LLM_FD_MAX_TOKENS", "160")),
         }
+        if os.environ.get("LLM_FD_ENABLE_THINKING", "").strip():
+            payload["enable_thinking"] = os.environ.get("LLM_FD_ENABLE_THINKING", "").lower() in {"1", "true", "yes"}
         request = urllib.request.Request(
             f"{base_url}/chat/completions",
             data=json.dumps(payload).encode("utf-8"),
@@ -171,7 +173,7 @@ class FailureClassifier:
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
                 body = response.read().decode("utf-8", errors="ignore")
-        except urllib.error.URLError as exc:
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
             return FailureDiagnosis("unknown", 0.0, f"API failed: {exc}", "api_error")
         try:
             raw = json.loads(body)["choices"][0]["message"]["content"]
