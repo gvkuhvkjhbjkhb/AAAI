@@ -14,6 +14,12 @@ METRICS = [
     "stability_gap",
     "last_test_return",
     "best_test_return",
+    "last_llm_fd_shaping_triggers",
+    "last_llm_fd_shaping_penalty_total",
+    "last_llm_fd_shaping_terminal_bonus_total",
+    "last_llm_fd_shaping_episode_steps_total",
+    "last_llm_fd_shaping_avg_penalty_per_trigger",
+    "last_llm_fd_shaping_avg_steps_per_trigger",
 ]
 
 
@@ -21,7 +27,24 @@ def parse_log(path):
     text = open(path, encoding="utf-8", errors="ignore").read()
     returns = [float(x) for x in re.findall(r"return_mean:\s+([-0-9.]+)", text)]
     tests = [float(x) for x in re.findall(r"test_return_mean:\s+([-0-9.]+)", text)]
-    records = [float(x) for x in re.findall(r"llm_fd_records:\s+([-0-9.]+)", text)]
+    records = [float(x) for x in re.findall(r"llm_fd_records:\s*([-0-9.]+)", text)]
+    shaping_triggers = [float(x) for x in re.findall(r"llm_fd_shaping_triggers:\s*([-0-9.]+)", text)]
+    shaping_penalty_total = [float(x) for x in re.findall(r"llm_fd_shaping_penalty_total:\s*([-0-9.]+)", text)]
+    shaping_terminal_bonus_total = [float(x) for x in re.findall(r"llm_fd_shaping_terminal_bonus_total:\s*([-0-9.]+)", text)]
+    shaping_episode_steps_total = [float(x) for x in re.findall(r"llm_fd_shaping_episode_steps_total:\s*([-0-9.]+)", text)]
+    shaping_avg_penalty = [float(x) for x in re.findall(r"llm_fd_shaping_avg_penalty_per_trigger:\s*([-0-9.]+)", text)]
+    shaping_avg_steps = [float(x) for x in re.findall(r"llm_fd_shaping_avg_steps_per_trigger:\s*([-0-9.]+)", text)]
+    final_accounting = {}
+    final_matches = re.findall(r"LLM_FD_ACCOUNTING_FINAL\s+([^\n]+)", text)
+    if final_matches:
+        for token in final_matches[-1].split():
+            if "=" not in token:
+                continue
+            key, value = token.split("=", 1)
+            try:
+                final_accounting[key] = float(value)
+            except ValueError:
+                pass
     return {
         "last_train_return": returns[-1] if returns else "",
         "best_train_return": max(returns) if returns else "",
@@ -30,6 +53,12 @@ def parse_log(path):
         "last_test_return": tests[-1] if tests else "",
         "best_test_return": max(tests) if tests else "",
         "last_llm_fd_records": records[-1] if records else "",
+        "last_llm_fd_shaping_triggers": final_accounting.get("triggers", shaping_triggers[-1] if shaping_triggers else ""),
+        "last_llm_fd_shaping_penalty_total": final_accounting.get("penalty_total", shaping_penalty_total[-1] if shaping_penalty_total else ""),
+        "last_llm_fd_shaping_terminal_bonus_total": final_accounting.get("terminal_bonus_total", shaping_terminal_bonus_total[-1] if shaping_terminal_bonus_total else ""),
+        "last_llm_fd_shaping_episode_steps_total": final_accounting.get("episode_steps_total", shaping_episode_steps_total[-1] if shaping_episode_steps_total else ""),
+        "last_llm_fd_shaping_avg_penalty_per_trigger": final_accounting.get("avg_penalty_per_trigger", shaping_avg_penalty[-1] if shaping_avg_penalty else ""),
+        "last_llm_fd_shaping_avg_steps_per_trigger": final_accounting.get("avg_steps_per_trigger", shaping_avg_steps[-1] if shaping_avg_steps else ""),
     }
 
 

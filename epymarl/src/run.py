@@ -280,11 +280,17 @@ def run_sequential(args, logger):
         if (runner.t_env - last_log_T) >= args.log_interval:
             logger.log_stat("episode", episode, runner.t_env)
             fd_recorder.log_stats(logger, runner.t_env)
+            fd_reward_intervention.log_stats(logger, runner.t_env)
             for failure_type, weight in fd_curriculum.weights().items():
                 logger.log_stat(f"llm_fd_curriculum_{failure_type}_weight", weight, runner.t_env)
             logger.print_recent_stats()
             last_log_T = runner.t_env
 
+    fd_accounting = fd_reward_intervention.accounting()
+    logger.console_logger.info(
+        "LLM_FD_ACCOUNTING_FINAL "
+        + " ".join(f"{key}={value}" for key, value in sorted(fd_accounting.items()))
+    )
     runner.close_env()
     logger.console_logger.info("Finished Training")
 

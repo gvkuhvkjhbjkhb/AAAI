@@ -26,6 +26,10 @@ class FailureRewardIntervention:
             "timeout_near_success": float(getattr(args, "llm_fd_weight_timeout_near_success", 0.00)),
             "unknown": float(getattr(args, "llm_fd_weight_unknown", 0.80)),
         }
+        self.shaping_trigger_count = 0
+        self.shaping_penalty_total = 0.0
+        self.shaping_terminal_bonus_total = 0.0
+        self.shaping_episode_steps_total = 0
 
     def apply(self, episode_batch, diagnoses, t_env=0):
         if not self.enabled or not diagnoses:
@@ -43,11 +47,44 @@ class FailureRewardIntervention:
             terminal_t = int(valid[-1].item())
             penalty = self._penalty(diagnosis, t_env)
             terminal_bonus = self._terminal_bonus(diagnosis)
+            episode_steps = terminal_t + 1
+            self._record_accounting(penalty, terminal_bonus, episode_steps)
             if penalty != 0.0:
                 rewards[batch_idx, : terminal_t + 1] -= penalty
             if terminal_bonus != 0.0:
                 rewards[batch_idx, terminal_t] += terminal_bonus
         return episode_batch
+
+    def _record_accounting(self, penalty, terminal_bonus, episode_steps):
+        self.shaping_trigger_count += 1
+        self.shaping_episode_steps_total += int(episode_steps)
+        self.shaping_penalty_total += float(penalty) * int(episode_steps)
+        self.shaping_terminal_bonus_total += float(terminal_bonus)
+
+    def accounting(self):
+        if self.shaping_trigger_count > 0:
+            avg_penalty = self.shaping_penalty_total / self.shaping_trigger_count
+            avg_steps = self.shaping_episode_steps_total / self.shaping_trigger_count
+        else:
+            avg_penalty = 0.0
+            avg_steps = 0.0
+        return {
+            "triggers": self.shaping_trigger_count,
+            "penalty_total": self.shaping_penalty_total,
+            "terminal_bonus_total": self.shaping_terminal_bonus_total,
+            "episode_steps_total": self.shaping_episode_steps_total,
+            "avg_penalty_per_trigger": avg_penalty,
+            "avg_steps_per_trigger": avg_steps,
+        }
+
+    def log_stats(self, logger, t_env):
+        stats = self.accounting()
+        logger.log_stat("llm_fd_shaping_triggers", stats["triggers"], t_env)
+        logger.log_stat("llm_fd_shaping_penalty_total", stats["penalty_total"], t_env)
+        logger.log_stat("llm_fd_shaping_terminal_bonus_total", stats["terminal_bonus_total"], t_env)
+        logger.log_stat("llm_fd_shaping_episode_steps_total", stats["episode_steps_total"], t_env)
+        logger.log_stat("llm_fd_shaping_avg_penalty_per_trigger", stats["avg_penalty_per_trigger"], t_env)
+        logger.log_stat("llm_fd_shaping_avg_steps_per_trigger", stats["avg_steps_per_trigger"], t_env)
 
     def _penalty(self, diagnosis, t_env):
         if self.failure_penalty == 0.0:
@@ -95,6 +132,37 @@ class RandomTypeFailureRewardIntervention(FailureRewardIntervention):
     def __init__(self, args):
         super().__init__(args)
         self._failure_types = sorted(self.type_weights)
+
+    def _record_accounting(self, penalty, terminal_bonus, episode_steps):
+        self.shaping_trigger_count += 1
+        self.shaping_episode_steps_total += int(episode_steps)
+        self.shaping_penalty_total += float(penalty) * int(episode_steps)
+        self.shaping_terminal_bonus_total += float(terminal_bonus)
+
+    def accounting(self):
+        if self.shaping_trigger_count > 0:
+            avg_penalty = self.shaping_penalty_total / self.shaping_trigger_count
+            avg_steps = self.shaping_episode_steps_total / self.shaping_trigger_count
+        else:
+            avg_penalty = 0.0
+            avg_steps = 0.0
+        return {
+            "triggers": self.shaping_trigger_count,
+            "penalty_total": self.shaping_penalty_total,
+            "terminal_bonus_total": self.shaping_terminal_bonus_total,
+            "episode_steps_total": self.shaping_episode_steps_total,
+            "avg_penalty_per_trigger": avg_penalty,
+            "avg_steps_per_trigger": avg_steps,
+        }
+
+    def log_stats(self, logger, t_env):
+        stats = self.accounting()
+        logger.log_stat("llm_fd_shaping_triggers", stats["triggers"], t_env)
+        logger.log_stat("llm_fd_shaping_penalty_total", stats["penalty_total"], t_env)
+        logger.log_stat("llm_fd_shaping_terminal_bonus_total", stats["terminal_bonus_total"], t_env)
+        logger.log_stat("llm_fd_shaping_episode_steps_total", stats["episode_steps_total"], t_env)
+        logger.log_stat("llm_fd_shaping_avg_penalty_per_trigger", stats["avg_penalty_per_trigger"], t_env)
+        logger.log_stat("llm_fd_shaping_avg_steps_per_trigger", stats["avg_steps_per_trigger"], t_env)
 
     def _penalty(self, diagnosis, t_env):
         if self.failure_penalty == 0.0 or diagnosis is None:
@@ -152,6 +220,8 @@ class MatchedRandomTypeFailureRewardIntervention(FailureRewardIntervention):
                 phase_weight = self._phase_weight(t_env) if self.random_type_use_phase else 1.0
                 penalty = self.failure_penalty * confidence * self.type_weights.get(failure_type, self.type_weights["unknown"]) * phase_weight
                 terminal_bonus = self.terminal_bonus if failure_type == "timeout_near_success" else 0.0
+            episode_steps = terminal_t + 1
+            self._record_accounting(penalty, terminal_bonus, episode_steps)
             if penalty != 0.0:
                 rewards[batch_idx, : terminal_t + 1] -= penalty
             if terminal_bonus != 0.0:
