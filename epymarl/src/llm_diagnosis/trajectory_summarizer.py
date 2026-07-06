@@ -44,12 +44,18 @@ def _valid_length(filled):
     return int(arr.sum())
 
 
-def _action_histogram(actions, length):
+def _action_name(action, env_name):
+    if "foraging" in env_name.lower() or "lbforaging" in env_name.lower():
+        return ACTION_NAMES.get(int(action), f"action_{int(action)}")
+    return f"action_{int(action)}"
+
+
+def _action_histogram(actions, length, env_name):
     counts = {}
     if length <= 0:
         return counts
     for action in actions[:length].reshape(-1):
-        name = ACTION_NAMES.get(int(action), f"action_{int(action)}")
+        name = _action_name(action, env_name)
         counts[name] = counts.get(name, 0) + 1
     return counts
 
@@ -77,11 +83,12 @@ def summarize_episode_batch(episode_batch, env_name="unknown", success_reward=No
     episode_return = float(rewards[:length].sum()) if length > 0 else 0.0
     positive_reward_steps = int((rewards[:length] > 0).sum()) if length > 0 else 0
     zero_reward_steps = int((np.isclose(rewards[:length], 0.0)).sum()) if length > 0 else 0
+    is_lbf = "foraging" in env_name.lower() or "lbforaging" in env_name.lower()
     load_counts = []
-    if actions.ndim >= 2 and length > 0:
+    if is_lbf and actions.ndim >= 2 and length > 0:
         load_counts = [int((actions[:length, agent_id] == 5).sum()) for agent_id in range(n_agents)]
     stats = _state_stats(states, length)
-    action_hist = _action_histogram(actions, length)
+    action_hist = _action_histogram(actions, length, env_name)
     success_clause = "not configured"
     if success_reward is not None:
         success_clause = str(episode_return >= float(success_reward))
@@ -95,8 +102,9 @@ def summarize_episode_batch(episode_batch, env_name="unknown", success_reward=No
         f"Positive reward steps: {positive_reward_steps}",
         f"Zero reward steps: {zero_reward_steps}",
         f"Action histogram: {action_hist}",
-        f"Load action counts by agent: {load_counts}",
         f"Mean absolute state change: {stats['mean_abs_state_delta']:.6f}",
         f"State variation: {stats['state_variation']:.6f}",
     ]
+    if is_lbf:
+        lines.insert(8, f"Load action counts by agent: {load_counts}")
     return "\n".join(lines)
