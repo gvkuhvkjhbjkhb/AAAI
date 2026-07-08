@@ -1,5 +1,7 @@
 import hashlib
 
+import numpy as np
+
 
 class FailureRewardIntervention:
     def __init__(self, args):
@@ -18,6 +20,13 @@ class FailureRewardIntervention:
         self.random_type_use_phase = bool(getattr(args, "llm_fd_random_type_use_phase", False))
         self.semantic_gate_threshold = float(getattr(args, "llm_fd_semantic_gate_threshold", 0.55))
         self.semantic_gate_fallback_weight = float(getattr(args, "llm_fd_semantic_gate_fallback_weight", 1.0))
+        self.success_bonus = float(getattr(args, "llm_fd_success_bonus", 0.0))
+        self.outcome_penalty = float(getattr(args, "llm_fd_outcome_penalty", self.failure_penalty))
+        self.success_percentile = float(getattr(args, "llm_fd_success_percentile", 70.0))
+        self.outcome_failure_percentile = float(getattr(args, "llm_fd_outcome_failure_percentile", 30.0))
+        self.success_min_return = float(getattr(args, "llm_fd_success_min_return", 0.0))
+        self.outcome_use_phase = bool(getattr(args, "llm_fd_outcome_use_phase", False))
+        self.outcome_modes = {"success_bonus", "terminal_failure", "outcome_contrast"}
         self.type_weights = {
             "inefficient_exploration": float(getattr(args, "llm_fd_weight_inefficient_exploration", 0.80)),
             "target_miscoordination": float(getattr(args, "llm_fd_weight_target_miscoordination", 1.20)),
@@ -32,6 +41,8 @@ class FailureRewardIntervention:
         self.shaping_episode_steps_total = 0
 
     def apply(self, episode_batch, diagnoses, t_env=0):
+        if self.enabled and self.mode in self.outcome_modes:
+            return self._apply_outcome_shaping(episode_batch, t_env)
         if not self.enabled or not diagnoses:
             return episode_batch
         rewards = episode_batch.data.transition_data["reward"]
@@ -60,6 +71,49 @@ class FailureRewardIntervention:
         self.shaping_episode_steps_total += int(episode_steps)
         self.shaping_penalty_total += float(penalty) * int(episode_steps)
         self.shaping_terminal_bonus_total += float(terminal_bonus)
+
+    def _apply_outcome_shaping(self, episode_batch, t_env):
+        import numpy as np
+        rewards = episode_batch.data.transition_data["reward"]
+        filled = episode_batch.data.transition_data["filled"]
+        returns = []
+        for batch_idx in range(rewards.shape[0]):
+            valid_mask = filled[batch_idx, :, 0].bool()
+            n = int(valid_mask.sum().item())
+            if n == 0:
+                returns.append(None)
+            else:
+                returns.append(float(rewards[batch_idx, :n, 0].sum().item()))
+        valid_returns = [r for r in returns if r is not None]
+        if not valid_returns:
+            return episode_batch
+        success_threshold = max(self.success_min_return, float(np.percentile(valid_returns, self.success_percentile)))
+        failure_threshold = float(np.percentile(valid_returns, self.outcome_failure_percentile))
+        phase_weight = self._phase_weight(t_env) if self.outcome_use_phase else 1.0
+        for batch_idx, episode_return in enumerate(returns):
+            if episode_return is None:
+                continue
+            valid = filled[batch_idx, :, 0].nonzero(as_tuple=False)
+            if valid.numel() == 0:
+                continue
+            terminal_t = int(valid[-1].item())
+            terminal_bonus = 0.0
+            terminal_penalty = 0.0
+            if self.mode in {"success_bonus", "outcome_contrast"} and episode_return >= success_threshold:
+                terminal_bonus = self.success_bonus * phase_weight
+            if self.mode in {"terminal_failure", "outcome_contrast"} and episode_return <= failure_threshold:
+                terminal_penalty = self.outcome_penalty * phase_weight
+            if terminal_bonus == 0.0 and terminal_penalty == 0.0:
+                continue
+            self.shaping_trigger_count += 1
+            self.shaping_episode_steps_total += 1
+            self.shaping_penalty_total += float(terminal_penalty)
+            self.shaping_terminal_bonus_total += float(terminal_bonus)
+            if terminal_penalty != 0.0:
+                rewards[batch_idx, terminal_t] -= terminal_penalty
+            if terminal_bonus != 0.0:
+                rewards[batch_idx, terminal_t] += terminal_bonus
+        return episode_batch
 
     def accounting(self):
         if self.shaping_trigger_count > 0:
@@ -138,6 +192,49 @@ class RandomTypeFailureRewardIntervention(FailureRewardIntervention):
         self.shaping_episode_steps_total += int(episode_steps)
         self.shaping_penalty_total += float(penalty) * int(episode_steps)
         self.shaping_terminal_bonus_total += float(terminal_bonus)
+
+    def _apply_outcome_shaping(self, episode_batch, t_env):
+        import numpy as np
+        rewards = episode_batch.data.transition_data["reward"]
+        filled = episode_batch.data.transition_data["filled"]
+        returns = []
+        for batch_idx in range(rewards.shape[0]):
+            valid_mask = filled[batch_idx, :, 0].bool()
+            n = int(valid_mask.sum().item())
+            if n == 0:
+                returns.append(None)
+            else:
+                returns.append(float(rewards[batch_idx, :n, 0].sum().item()))
+        valid_returns = [r for r in returns if r is not None]
+        if not valid_returns:
+            return episode_batch
+        success_threshold = max(self.success_min_return, float(np.percentile(valid_returns, self.success_percentile)))
+        failure_threshold = float(np.percentile(valid_returns, self.outcome_failure_percentile))
+        phase_weight = self._phase_weight(t_env) if self.outcome_use_phase else 1.0
+        for batch_idx, episode_return in enumerate(returns):
+            if episode_return is None:
+                continue
+            valid = filled[batch_idx, :, 0].nonzero(as_tuple=False)
+            if valid.numel() == 0:
+                continue
+            terminal_t = int(valid[-1].item())
+            terminal_bonus = 0.0
+            terminal_penalty = 0.0
+            if self.mode in {"success_bonus", "outcome_contrast"} and episode_return >= success_threshold:
+                terminal_bonus = self.success_bonus * phase_weight
+            if self.mode in {"terminal_failure", "outcome_contrast"} and episode_return <= failure_threshold:
+                terminal_penalty = self.outcome_penalty * phase_weight
+            if terminal_bonus == 0.0 and terminal_penalty == 0.0:
+                continue
+            self.shaping_trigger_count += 1
+            self.shaping_episode_steps_total += 1
+            self.shaping_penalty_total += float(terminal_penalty)
+            self.shaping_terminal_bonus_total += float(terminal_bonus)
+            if terminal_penalty != 0.0:
+                rewards[batch_idx, terminal_t] -= terminal_penalty
+            if terminal_bonus != 0.0:
+                rewards[batch_idx, terminal_t] += terminal_bonus
+        return episode_batch
 
     def accounting(self):
         if self.shaping_trigger_count > 0:

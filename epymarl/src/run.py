@@ -200,7 +200,11 @@ def run_sequential(args, logger):
     fd_recorder = FailureTrajectoryRecorder(args, logger)
     fd_curriculum = FailureAwareCurriculum()
     intervention_mode = getattr(args, "llm_fd_intervention_mode", "uniform")
-    if intervention_mode == "random_type":
+    if intervention_mode in {"pbrs", "fa_pbrs", "pbrs_fixed", "pbrs_random_weights", "pbrs_random_features"}:
+        from llm_diagnosis.failure_aware_pbrs import FailureAwarePBRS
+
+        fd_reward_intervention = FailureAwarePBRS(args)
+    elif intervention_mode == "random_type":
         from llm_diagnosis.reward_intervention import RandomTypeFailureRewardIntervention
 
         fd_reward_intervention = RandomTypeFailureRewardIntervention(args)
