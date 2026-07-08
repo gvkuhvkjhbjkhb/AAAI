@@ -1,0 +1,313 @@
+[DEBUG 10:38:23] git.cmd Popen(['git', 'version'], cwd=/data/lab/AAAI_worker_round14_late060/epymarl, stdin=None, shell=False, universal_newlines=False)
+[DEBUG 10:38:23] git.cmd Popen(['git', 'version'], cwd=/data/lab/AAAI_worker_round14_late060/epymarl, stdin=None, shell=False, universal_newlines=False)
+[DEBUG 10:38:23] git.util sys.platform='linux', git_executable='git'
+[DEBUG 10:38:23] git.util sys.platform='linux', git_executable='git'
+[DEBUG 10:38:23] git.util sys.platform='linux', git_executable='git'
+[INFO 10:38:23] root Saving to FileStorageObserver in results/sacred.
+[DEBUG 10:38:24] pymarl Using capture mode "fd"
+[INFO 10:38:24] pymarl Running command 'my_main'
+[INFO 10:38:24] pymarl Started run with ID "28"
+[DEBUG 10:38:24] pymarl Starting Heartbeat
+[DEBUG 10:38:24] my_main Started
+[INFO 10:38:24] my_main Experiment Parameters:
+[INFO 10:38:24] my_main 
+
+{   'action_selector': 'soft_policies',
+    'add_value_last_step': True,
+    'agent': 'rnn',
+    'agent_output_type': 'pi_logits',
+    'batch_size': 10,
+    'batch_size_run': 10,
+    'buffer_cpu_only': True,
+    'buffer_size': 10,
+    'checkpoint_path': '',
+    'common_reward': True,
+    'critic_type': 'cv_critic',
+    'entropy_coef': 0.001,
+    'env': 'gymma',
+    'env_args': {   'key': 'lbforaging:Foraging-10x10-3p-3f-v3',
+                    'pretrained_wrapper': None,
+                    'seed': 3,
+                    'time_limit': 50},
+    'epochs': 4,
+    'eps_clip': 0.2,
+    'evaluate': False,
+    'gamma': 0.99,
+    'grad_norm_clip': 10,
+    'hidden_dim': 128,
+    'hypergroup': None,
+    'label': 'default_label',
+    'learner': 'ppo_learner',
+    'learner_log_interval': 25000,
+    'llm_fd_apply_reward_shaping': True,
+    'llm_fd_classifier': 'enhanced_heuristic',
+    'llm_fd_confidence_floor': 0.4,
+    'llm_fd_confidence_max_multiplier': 1.3,
+    'llm_fd_confidence_min_multiplier': 0.7,
+    'llm_fd_confidence_reference': 0.62,
+    'llm_fd_early_phase_weight': 0.5,
+    'llm_fd_enabled': True,
+    'llm_fd_failure_penalty': 0.0003,
+    'llm_fd_failure_percentile': 30.0,
+    'llm_fd_intervention_mode': 'phase_uniform',
+    'llm_fd_late_phase_weight': 0.6,
+    'llm_fd_matched_random_pool': 10000,
+    'llm_fd_max_records': 3000,
+    'llm_fd_middle_phase_weight': 1.0,
+    'llm_fd_min_history': 20,
+    'llm_fd_model': '',
+    'llm_fd_random_type_use_phase': False,
+    'llm_fd_semantic_gate_fallback_weight': 1.0,
+    'llm_fd_semantic_gate_threshold': 0.55,
+    'llm_fd_success_reward': None,
+    'llm_fd_terminal_bonus': 0.0003,
+    'llm_fd_timeout': 60,
+    'llm_fd_weight_inefficient_exploration': 0.8,
+    'llm_fd_weight_insufficient_cooperation': 1.1,
+    'llm_fd_weight_low_value_overcommitment': 1.4,
+    'llm_fd_weight_target_miscoordination': 1.2,
+    'llm_fd_weight_timeout_near_success': 0.0,
+    'llm_fd_weight_unknown': 0.8,
+    'load_step': 0,
+    'local_results_path': 'results',
+    'log_interval': 25000,
+    'lr': 0.0003,
+    'mac': 'basic_mac',
+    'mask_before_softmax': True,
+    'name': 'mappo_llm_fd',
+    'obs_agent_id': True,
+    'obs_individual_obs': False,
+    'obs_last_action': False,
+    'optim_alpha': 0.99,
+    'optim_eps': 1e-05,
+    'q_nstep': 5,
+    'render': False,
+    'repeat_id': 1,
+    'reward_scalarisation': 'sum',
+    'runner': 'parallel',
+    'runner_log_interval': 25000,
+    'save_model': False,
+    'save_model_interval': 50000,
+    'save_replay': False,
+    'seed': 3,
+    'standardise_returns': False,
+    'standardise_rewards': True,
+    't_max': 500000,
+    'target_update_interval_or_tau': 0.01,
+    'test_greedy': True,
+    'test_interval': 100000,
+    'test_nepisode': 20,
+    'use_cuda': True,
+    'use_rnn': True,
+    'use_tensorboard': False,
+    'use_wandb': False,
+    'wandb_mode': 'offline',
+    'wandb_project': None,
+    'wandb_save_model': False,
+    'wandb_team': None}
+
+[INFO 10:38:26] my_main Beginning training for 500000 timesteps
+/data/lab/AAAI_worker_round14_late060/epymarl/src/components/episode_buffer.py:93: UserWarning: Using a non-tuple sequence for multidimensional indexing is deprecated and will be changed in pytorch 2.9; use x[tuple(seq)] instead of x[seq]. In pytorch 2.9 this will be interpreted as tensor index, x[torch.tensor(seq)], which will result either in an error or a different result (Triggered internally at /pytorch/torch/csrc/autograd/python_variable_indexing.cpp:347.)
+  target["filled"][slices] = 1
+/data/lab/AAAI_worker_round14_late060/epymarl/src/components/episode_buffer.py:105: UserWarning: Using a non-tuple sequence for multidimensional indexing is deprecated and will be changed in pytorch 2.9; use x[tuple(seq)] instead of x[seq]. In pytorch 2.9 this will be interpreted as tensor index, x[torch.tensor(seq)], which will result either in an error or a different result (Triggered internally at /pytorch/torch/csrc/autograd/python_variable_indexing.cpp:347.)
+  self._check_safe_view(v, target[k][_slices])
+/data/lab/AAAI_worker_round14_late060/epymarl/src/components/episode_buffer.py:106: UserWarning: Using a non-tuple sequence for multidimensional indexing is deprecated and will be changed in pytorch 2.9; use x[tuple(seq)] instead of x[seq]. In pytorch 2.9 this will be interpreted as tensor index, x[torch.tensor(seq)], which will result either in an error or a different result (Triggered internally at /pytorch/torch/csrc/autograd/python_variable_indexing.cpp:347.)
+  target[k][_slices] = v.view_as(target[k][_slices])
+/data/lab/AAAI_worker_round14_late060/epymarl/src/components/episode_buffer.py:110: UserWarning: Using a non-tuple sequence for multidimensional indexing is deprecated and will be changed in pytorch 2.9; use x[tuple(seq)] instead of x[seq]. In pytorch 2.9 this will be interpreted as tensor index, x[torch.tensor(seq)], which will result either in an error or a different result (Triggered internally at /pytorch/torch/csrc/autograd/python_variable_indexing.cpp:347.)
+  v = target[k][_slices]
+/data/lab/AAAI_worker_round14_late060/epymarl/src/components/episode_buffer.py:113: UserWarning: Using a non-tuple sequence for multidimensional indexing is deprecated and will be changed in pytorch 2.9; use x[tuple(seq)] instead of x[seq]. In pytorch 2.9 this will be interpreted as tensor index, x[torch.tensor(seq)], which will result either in an error or a different result (Triggered internally at /pytorch/torch/csrc/autograd/python_variable_indexing.cpp:347.)
+  target[new_k][_slices] = v.view_as(target[new_k][_slices])
+/usr/local/lib/python3.10/dist-packages/gymnasium/utils/passive_env_checker.py:244: UserWarning: [33mWARN: The reward returned by `step()` must be a float, int, np.integer or np.floating, actual type: <class 'list'>[0m
+  logger.warn(
+/usr/local/lib/python3.10/dist-packages/gymnasium/utils/passive_env_checker.py:244: UserWarning: [33mWARN: The reward returned by `step()` must be a float, int, np.integer or np.floating, actual type: <class 'list'>[0m
+  logger.warn(
+/usr/local/lib/python3.10/dist-packages/gymnasium/utils/passive_env_checker.py:244: UserWarning: [33mWARN: The reward returned by `step()` must be a float, int, np.integer or np.floating, actual type: <class 'list'>[0m
+  logger.warn(
+/usr/local/lib/python3.10/dist-packages/gymnasium/utils/passive_env_checker.py:244: UserWarning: [33mWARN: The reward returned by `step()` must be a float, int, np.integer or np.floating, actual type: <class 'list'>[0m
+  logger.warn(
+/usr/local/lib/python3.10/dist-packages/gymnasium/utils/passive_env_checker.py:244: UserWarning: [33mWARN: The reward returned by `step()` must be a float, int, np.integer or np.floating, actual type: <class 'list'>[0m
+  logger.warn(
+/usr/local/lib/python3.10/dist-packages/gymnasium/utils/passive_env_checker.py:244: UserWarning: [33mWARN: The reward returned by `step()` must be a float, int, np.integer or np.floating, actual type: <class 'list'>[0m
+  logger.warn(
+/usr/local/lib/python3.10/dist-packages/gymnasium/utils/passive_env_checker.py:244: UserWarning: [33mWARN: The reward returned by `step()` must be a float, int, np.integer or np.floating, actual type: <class 'list'>[0m
+  logger.warn(
+/usr/local/lib/python3.10/dist-packages/gymnasium/utils/passive_env_checker.py:244: UserWarning: [33mWARN: The reward returned by `step()` must be a float, int, np.integer or np.floating, actual type: <class 'list'>[0m
+  logger.warn(
+/usr/local/lib/python3.10/dist-packages/gymnasium/utils/passive_env_checker.py:244: UserWarning: [33mWARN: The reward returned by `step()` must be a float, int, np.integer or np.floating, actual type: <class 'list'>[0m
+  logger.warn(
+/usr/local/lib/python3.10/dist-packages/gymnasium/utils/passive_env_checker.py:244: UserWarning: [33mWARN: The reward returned by `step()` must be a float, int, np.integer or np.floating, actual type: <class 'list'>[0m
+  logger.warn(
+/data/lab/AAAI_worker_round14_late060/epymarl/src/components/episode_buffer.py:152: UserWarning: Using a non-tuple sequence for multidimensional indexing is deprecated and will be changed in pytorch 2.9; use x[tuple(seq)] instead of x[seq]. In pytorch 2.9 this will be interpreted as tensor index, x[torch.tensor(seq)], which will result either in an error or a different result (Triggered internally at /pytorch/torch/csrc/autograd/python_variable_indexing.cpp:347.)
+  new_data.transition_data[k] = v[item]
+[INFO 10:38:27] my_main t_env: 500 / 500000
+[INFO 10:38:27] my_main Estimated time left: 5 seconds. Time passed: 1 seconds
+[INFO 10:38:45] my_main Recent Stats | t_env:      25465 | Episode:      510
+advantage_mean:            0.0726	agent_grad_norm:           0.4396	critic_grad_norm:          3.0200	critic_loss:               4.3562
+ep_length_mean:           50.0000	llm_fd_curriculum_inefficient_exploration_weight:  0.9929	llm_fd_curriculum_target_miscoordination_weight:  0.0071	llm_fd_inefficient_exploration_ratio:  0.9929
+llm_fd_records:          282.0000	llm_fd_shaping_avg_penalty_per_trigger:  0.0076	llm_fd_shaping_avg_steps_per_trigger: 51.0000	llm_fd_shaping_episode_steps_total:14382.0000
+llm_fd_shaping_penalty_total:  2.1573	llm_fd_shaping_terminal_bonus_total:  0.0000	llm_fd_shaping_triggers: 282.0000	llm_fd_target_miscoordination_ratio:  0.0071
+pg_loss:                  -0.1009	pi_max:                    0.2709	q_taken_mean:             -0.0072	return_mean:               0.1042
+return_std:                0.1470	target_mean:               0.0654	td_error_abs:              0.8754	test_ep_length_mean:      50.0000
+test_return_mean:          0.0808	test_return_std:           0.1047	
+[INFO 10:39:03] my_main Recent Stats | t_env:      50932 | Episode:     1020
+advantage_mean:           -0.1537	agent_grad_norm:           0.2930	critic_grad_norm:          5.9634	critic_loss:               2.9898
+ep_length_mean:           49.9657	llm_fd_curriculum_inefficient_exploration_weight:  0.9948	llm_fd_curriculum_target_miscoordination_weight:  0.0052	llm_fd_inefficient_exploration_ratio:  0.9948
+llm_fd_records:          439.0000	llm_fd_shaping_avg_penalty_per_trigger:  0.0076	llm_fd_shaping_avg_steps_per_trigger: 51.0000	llm_fd_shaping_episode_steps_total:22389.0000
+llm_fd_shaping_penalty_total:  3.3583	llm_fd_shaping_terminal_bonus_total:  0.0000	llm_fd_shaping_triggers: 439.0000	llm_fd_target_miscoordination_ratio:  0.0052
+pg_loss:                   0.1385	pi_max:                    0.4380	q_taken_mean:              0.1062	return_mean:               0.1095
+return_std:                0.1583	target_mean:              -0.0475	td_error_abs:              0.7424	test_ep_length_mean:      50.0000
+test_return_mean:          0.0808	test_return_std:           0.1047	
+[INFO 10:39:21] my_main Recent Stats | t_env:      76331 | Episode:     1530
+advantage_mean:           -0.1028	agent_grad_norm:           0.3538	critic_grad_norm:          5.5763	critic_loss:               4.6443
+ep_length_mean:           49.9399	llm_fd_curriculum_inefficient_exploration_weight:  0.9958	llm_fd_curriculum_target_miscoordination_weight:  0.0042	llm_fd_inefficient_exploration_ratio:  0.9958
+llm_fd_records:          594.6667	llm_fd_shaping_avg_penalty_per_trigger:  0.0076	llm_fd_shaping_avg_steps_per_trigger: 51.0000	llm_fd_shaping_episode_steps_total:30328.0000
+llm_fd_shaping_penalty_total:  4.5492	llm_fd_shaping_terminal_bonus_total:  0.0000	llm_fd_shaping_triggers: 594.6667	llm_fd_target_miscoordination_ratio:  0.0042
+pg_loss:                   0.0888	pi_max:                    0.5286	q_taken_mean:              0.2457	return_mean:               0.1068
+return_std:                0.1598	target_mean:               0.1429	td_error_abs:              0.9081	test_ep_length_mean:      50.0000
+test_return_mean:          0.0808	test_return_std:           0.1047	
+[INFO 10:39:38] my_main t_env: 100831 / 500000
+[INFO 10:39:38] my_main Estimated time left: 4 minutes, 44 seconds. Time passed: 1 minutes, 12 seconds
+[INFO 10:39:39] my_main Recent Stats | t_env:     101331 | Episode:     2030
+advantage_mean:           -0.2581	agent_grad_norm:           0.3620	critic_grad_norm:          9.9722	critic_loss:               4.3866
+ep_length_mean:           49.9172	llm_fd_curriculum_inefficient_exploration_weight:  0.9964	llm_fd_curriculum_target_miscoordination_weight:  0.0036	llm_fd_inefficient_exploration_ratio:  0.9964
+llm_fd_records:          753.7500	llm_fd_shaping_avg_penalty_per_trigger:  0.0077	llm_fd_shaping_avg_steps_per_trigger: 51.0000	llm_fd_shaping_episode_steps_total:38441.2500
+llm_fd_shaping_penalty_total:  5.8025	llm_fd_shaping_terminal_bonus_total:  0.0000	llm_fd_shaping_triggers: 753.7500	llm_fd_target_miscoordination_ratio:  0.0036
+pg_loss:                   0.2461	pi_max:                    0.5478	q_taken_mean:              0.4574	return_mean:               0.1064
+return_std:                0.1629	target_mean:               0.1993	td_error_abs:              1.0087	test_ep_length_mean:      50.0000
+test_return_mean:          0.1010	test_return_std:           0.1527	
+[INFO 10:39:57] my_main Recent Stats | t_env:     126824 | Episode:     2540
+advantage_mean:           -0.2192	agent_grad_norm:           0.3681	critic_grad_norm:          8.4204	critic_loss:               4.3051
+ep_length_mean:           49.9337	llm_fd_curriculum_inefficient_exploration_weight:  0.9969	llm_fd_curriculum_target_miscoordination_weight:  0.0031	llm_fd_inefficient_exploration_ratio:  0.9969
+llm_fd_records:          908.6000	llm_fd_shaping_avg_penalty_per_trigger:  0.0080	llm_fd_shaping_avg_steps_per_trigger: 51.0000	llm_fd_shaping_episode_steps_total:46338.6000
+llm_fd_shaping_penalty_total:  7.4633	llm_fd_shaping_terminal_bonus_total:  0.0000	llm_fd_shaping_triggers: 908.6000	llm_fd_target_miscoordination_ratio:  0.0031
+pg_loss:                   0.2089	pi_max:                    0.5502	q_taken_mean:              0.4611	return_mean:               0.1013
+return_std:                0.1572	target_mean:               0.2420	td_error_abs:              0.9906	test_ep_length_mean:      50.0000
+test_return_mean:          0.1010	test_return_std:           0.1527	
+[INFO 10:40:16] my_main Recent Stats | t_env:     152184 | Episode:     3050
+advantage_mean:           -0.1507	agent_grad_norm:           0.3190	critic_grad_norm:         10.1337	critic_loss:               4.5435
+ep_length_mean:           49.9310	llm_fd_curriculum_inefficient_exploration_weight:  0.9981	llm_fd_curriculum_target_miscoordination_weight:  0.0019	llm_fd_inefficient_exploration_ratio:  0.9981
+llm_fd_records:          1210.0000	llm_fd_shaping_avg_penalty_per_trigger:  0.0085	llm_fd_shaping_avg_steps_per_trigger: 51.0000	llm_fd_shaping_episode_steps_total:61710.0000
+llm_fd_shaping_penalty_total: 10.6519	llm_fd_shaping_terminal_bonus_total:  0.0000	llm_fd_shaping_triggers: 1210.0000	llm_fd_target_miscoordination_ratio:  0.0019
+pg_loss:                   0.1458	pi_max:                    0.6500	q_taken_mean:              0.4723	return_mean:               0.1020
+return_std:                0.1601	target_mean:               0.3216	td_error_abs:              1.0031	test_ep_length_mean:      50.0000
+test_return_mean:          0.1010	test_return_std:           0.1527	
+[INFO 10:40:34] my_main Recent Stats | t_env:     177567 | Episode:     3560
+advantage_mean:           -0.1114	agent_grad_norm:           0.3763	critic_grad_norm:          9.3690	critic_loss:               4.9732
+ep_length_mean:           49.8898	llm_fd_curriculum_inefficient_exploration_weight:  0.9986	llm_fd_curriculum_target_miscoordination_weight:  0.0014	llm_fd_inefficient_exploration_ratio:  0.9986
+llm_fd_records:          1494.6000	llm_fd_shaping_avg_penalty_per_trigger:  0.0091	llm_fd_shaping_avg_steps_per_trigger: 51.0000	llm_fd_shaping_episode_steps_total:76224.6000
+llm_fd_shaping_penalty_total: 14.0638	llm_fd_shaping_terminal_bonus_total:  0.0000	llm_fd_shaping_triggers: 1494.6000	llm_fd_target_miscoordination_ratio:  0.0014
+pg_loss:                   0.1056	pi_max:                    0.6440	q_taken_mean:              0.4800	return_mean:               0.1064
+return_std:                0.1642	target_mean:               0.3686	td_error_abs:              1.0545	test_ep_length_mean:      50.0000
+test_return_mean:          0.1010	test_return_std:           0.1527	
+[INFO 10:40:52] my_main t_env: 201326 / 500000
+[INFO 10:40:52] my_main Estimated time left: 3 minutes, 38 seconds. Time passed: 2 minutes, 26 seconds
+[INFO 10:40:53] my_main Recent Stats | t_env:     202826 | Episode:     4070
+advantage_mean:           -0.0913	agent_grad_norm:           0.3816	critic_grad_norm:          9.6550	critic_loss:               4.9288
+ep_length_mean:           49.8663	llm_fd_curriculum_inefficient_exploration_weight:  0.9987	llm_fd_curriculum_target_miscoordination_weight:  0.0013	llm_fd_inefficient_exploration_ratio:  0.9987
+llm_fd_records:          1766.8000	llm_fd_shaping_avg_penalty_per_trigger:  0.0098	llm_fd_shaping_avg_steps_per_trigger: 51.0000	llm_fd_shaping_episode_steps_total:90106.8000
+llm_fd_shaping_penalty_total: 17.7602	llm_fd_shaping_terminal_bonus_total:  0.0000	llm_fd_shaping_triggers: 1766.8000	llm_fd_target_miscoordination_ratio:  0.0013
+pg_loss:                   0.0856	pi_max:                    0.6283	q_taken_mean:              0.4346	return_mean:               0.1175
+return_std:                0.1720	target_mean:               0.3432	td_error_abs:              1.0224	test_ep_length_mean:      49.4333
+test_return_mean:          0.1768	test_return_std:           0.2028	
+[INFO 10:41:13] my_main Recent Stats | t_env:     228119 | Episode:     4580
+advantage_mean:            0.0583	agent_grad_norm:           0.3739	critic_grad_norm:          5.4924	critic_loss:               5.0242
+ep_length_mean:           49.8020	llm_fd_curriculum_inefficient_exploration_weight:  0.9988	llm_fd_curriculum_target_miscoordination_weight:  0.0012	llm_fd_inefficient_exploration_ratio:  0.9988
+llm_fd_records:          2013.2000	llm_fd_shaping_avg_penalty_per_trigger:  0.0106	llm_fd_shaping_avg_steps_per_trigger: 51.0000	llm_fd_shaping_episode_steps_total:102673.2000
+llm_fd_shaping_penalty_total: 21.5302	llm_fd_shaping_terminal_bonus_total:  0.0000	llm_fd_shaping_triggers: 2013.2000	llm_fd_target_miscoordination_ratio:  0.0012
+pg_loss:                  -0.0631	pi_max:                    0.6346	q_taken_mean:              0.2260	return_mean:               0.1275
+return_std:                0.1815	target_mean:               0.2842	td_error_abs:              0.8898	test_ep_length_mean:      49.4333
+test_return_mean:          0.1768	test_return_std:           0.2028	
+[INFO 10:41:32] my_main Recent Stats | t_env:     253531 | Episode:     5090
+advantage_mean:            0.1020	agent_grad_norm:           0.4001	critic_grad_norm:          6.0423	critic_loss:               4.6320
+ep_length_mean:           49.7208	llm_fd_curriculum_inefficient_exploration_weight:  0.9988	llm_fd_curriculum_target_miscoordination_weight:  0.0012	llm_fd_inefficient_exploration_ratio:  0.9988
+llm_fd_records:          2241.6000	llm_fd_shaping_avg_penalty_per_trigger:  0.0111	llm_fd_shaping_avg_steps_per_trigger: 51.0000	llm_fd_shaping_episode_steps_total:114321.6000
+llm_fd_shaping_penalty_total: 25.0247	llm_fd_shaping_terminal_bonus_total:  0.0000	llm_fd_shaping_triggers: 2241.6000	llm_fd_target_miscoordination_ratio:  0.0012
+pg_loss:                  -0.1067	pi_max:                    0.6289	q_taken_mean:              0.4310	return_mean:               0.1507
+return_std:                0.1995	target_mean:               0.5330	td_error_abs:              0.8533	test_ep_length_mean:      49.4333
+test_return_mean:          0.1768	test_return_std:           0.2028	
+[INFO 10:41:52] my_main Recent Stats | t_env:     278625 | Episode:     5610
+advantage_mean:            0.0113	agent_grad_norm:           0.4540	critic_grad_norm:          5.0091	critic_loss:               4.4220
+ep_length_mean:           49.6890	llm_fd_curriculum_inefficient_exploration_weight:  0.9989	llm_fd_curriculum_target_miscoordination_weight:  0.0011	llm_fd_inefficient_exploration_ratio:  0.9989
+llm_fd_records:          2451.0000	llm_fd_shaping_avg_penalty_per_trigger:  0.0115	llm_fd_shaping_avg_steps_per_trigger: 51.0000	llm_fd_shaping_episode_steps_total:125001.0000
+llm_fd_shaping_penalty_total: 28.2285	llm_fd_shaping_terminal_bonus_total:  0.0000	llm_fd_shaping_triggers: 2451.0000	llm_fd_target_miscoordination_ratio:  0.0011
+pg_loss:                  -0.0172	pi_max:                    0.5928	q_taken_mean:              0.6516	return_mean:               0.1651
+return_std:                0.2084	target_mean:               0.6629	td_error_abs:              0.8737	test_ep_length_mean:      49.4333
+test_return_mean:          0.1768	test_return_std:           0.2028	
+[INFO 10:42:10] my_main t_env: 301675 / 500000
+[INFO 10:42:10] my_main Estimated time left: 2 minutes, 35 seconds. Time passed: 3 minutes, 44 seconds
+[INFO 10:42:13] my_main Recent Stats | t_env:     303963 | Episode:     6160
+advantage_mean:           -0.1111	agent_grad_norm:           0.5791	critic_grad_norm:         10.2783	critic_loss:               4.8779
+ep_length_mean:           49.3955	llm_fd_curriculum_inefficient_exploration_weight:  0.9985	llm_fd_curriculum_target_miscoordination_weight:  0.0015	llm_fd_inefficient_exploration_ratio:  0.9985
+llm_fd_records:          2646.2000	llm_fd_shaping_avg_penalty_per_trigger:  0.0118	llm_fd_shaping_avg_steps_per_trigger: 51.0000	llm_fd_shaping_episode_steps_total:134956.2000
+llm_fd_shaping_penalty_total: 31.2151	llm_fd_shaping_terminal_bonus_total:  0.0000	llm_fd_shaping_triggers: 2646.2000	llm_fd_target_miscoordination_ratio:  0.0015
+pg_loss:                   0.1050	pi_max:                    0.6112	q_taken_mean:              1.0083	return_mean:               0.2028
+return_std:                0.2361	target_mean:               0.8973	td_error_abs:              1.0430	test_ep_length_mean:      49.0500
+test_return_mean:          0.2361	test_return_std:           0.2431	
+[INFO 10:42:34] my_main Recent Stats | t_env:     329158 | Episode:     6750
+advantage_mean:           -0.2113	agent_grad_norm:           0.5867	critic_grad_norm:         12.4285	critic_loss:               4.6316
+ep_length_mean:           48.6403	llm_fd_curriculum_inefficient_exploration_weight:  0.9983	llm_fd_curriculum_target_miscoordination_weight:  0.0017	llm_fd_inefficient_exploration_ratio:  0.9983
+llm_fd_records:          2792.8000	llm_fd_shaping_avg_penalty_per_trigger:  0.0120	llm_fd_shaping_avg_steps_per_trigger: 51.0000	llm_fd_shaping_episode_steps_total:142432.8000
+llm_fd_shaping_penalty_total: 33.4580	llm_fd_shaping_terminal_bonus_total:  0.0000	llm_fd_shaping_triggers: 2792.8000	llm_fd_target_miscoordination_ratio:  0.0017
+pg_loss:                   0.2049	pi_max:                    0.6038	q_taken_mean:              1.3410	return_mean:               0.2624
+return_std:                0.2702	target_mean:               1.1297	td_error_abs:              1.1212	test_ep_length_mean:      49.0500
+test_return_mean:          0.2361	test_return_std:           0.2431	
+[INFO 10:42:57] my_main Recent Stats | t_env:     354598 | Episode:     7360
+advantage_mean:           -0.1198	agent_grad_norm:           1.1208	critic_grad_norm:         20.9612	critic_loss:               7.8428
+ep_length_mean:           45.6834	llm_fd_curriculum_inefficient_exploration_weight:  0.9980	llm_fd_curriculum_target_miscoordination_weight:  0.0020	llm_fd_inefficient_exploration_ratio:  0.9980
+llm_fd_records:          2900.2000	llm_fd_shaping_avg_penalty_per_trigger:  0.0121	llm_fd_shaping_avg_steps_per_trigger: 51.0000	llm_fd_shaping_episode_steps_total:147910.2000
+llm_fd_shaping_penalty_total: 35.1013	llm_fd_shaping_terminal_bonus_total:  0.0000	llm_fd_shaping_triggers: 2900.2000	llm_fd_target_miscoordination_ratio:  0.0020
+pg_loss:                   0.1105	pi_max:                    0.6374	q_taken_mean:              2.0002	return_mean:               0.4343
+return_std:                0.3360	target_mean:               1.8803	td_error_abs:              1.6188	test_ep_length_mean:      49.0500
+test_return_mean:          0.2361	test_return_std:           0.2431	
+[INFO 10:43:20] my_main Recent Stats | t_env:     379956 | Episode:     7990
+advantage_mean:           -0.1636	agent_grad_norm:           1.5512	critic_grad_norm:         25.8486	critic_loss:               8.9397
+ep_length_mean:           43.7680	llm_fd_curriculum_inefficient_exploration_weight:  0.9977	llm_fd_curriculum_target_miscoordination_weight:  0.0023	llm_fd_inefficient_exploration_ratio:  0.9977
+llm_fd_records:          2966.2000	llm_fd_shaping_avg_penalty_per_trigger:  0.0122	llm_fd_shaping_avg_steps_per_trigger: 51.0000	llm_fd_shaping_episode_steps_total:151276.2000
+llm_fd_shaping_penalty_total: 36.1111	llm_fd_shaping_terminal_bonus_total:  0.0000	llm_fd_shaping_triggers: 2966.2000	llm_fd_target_miscoordination_ratio:  0.0023
+pg_loss:                   0.1528	pi_max:                    0.6516	q_taken_mean:              2.8453	return_mean:               0.5327
+return_std:                0.3708	target_mean:               2.6816	td_error_abs:              1.8788	test_ep_length_mean:      49.0500
+test_return_mean:          0.2361	test_return_std:           0.2431	
+[INFO 10:43:40] my_main t_env: 401843 / 500000
+[INFO 10:43:40] my_main Estimated time left: 1 minutes, 27 seconds. Time passed: 5 minutes, 14 seconds
+[INFO 10:43:43] my_main Recent Stats | t_env:     405067 | Episode:     8610
+advantage_mean:           -0.1703	agent_grad_norm:           1.7191	critic_grad_norm:         37.8779	critic_loss:              10.5690
+ep_length_mean:           42.2168	llm_fd_curriculum_inefficient_exploration_weight:  0.9973	llm_fd_curriculum_target_miscoordination_weight:  0.0027	llm_fd_inefficient_exploration_ratio:  0.9973
+llm_fd_records:          2999.0000	llm_fd_shaping_avg_penalty_per_trigger:  0.0122	llm_fd_shaping_avg_steps_per_trigger: 51.0000	llm_fd_shaping_episode_steps_total:152949.0000
+llm_fd_shaping_penalty_total: 36.6129	llm_fd_shaping_terminal_bonus_total:  0.0000	llm_fd_shaping_triggers: 2999.0000	llm_fd_target_miscoordination_ratio:  0.0027
+pg_loss:                   0.1582	pi_max:                    0.6588	q_taken_mean:              3.5590	return_mean:               0.6027
+return_std:                0.3779	target_mean:               3.3887	td_error_abs:              2.1215	test_ep_length_mean:      46.5900
+test_return_mean:          0.3569	test_return_std:           0.2481	
+[INFO 10:44:07] my_main Recent Stats | t_env:     430108 | Episode:     9260
+advantage_mean:           -0.0540	agent_grad_norm:           1.9640	critic_grad_norm:         37.6856	critic_loss:              10.5608
+ep_length_mean:           40.7228	llm_fd_curriculum_inefficient_exploration_weight:  0.9973	llm_fd_curriculum_target_miscoordination_weight:  0.0027	llm_fd_inefficient_exploration_ratio:  0.9973
+llm_fd_records:          3000.0000	llm_fd_shaping_avg_penalty_per_trigger:  0.0122	llm_fd_shaping_avg_steps_per_trigger: 51.0000	llm_fd_shaping_episode_steps_total:153000.0000
+llm_fd_shaping_penalty_total: 36.6282	llm_fd_shaping_terminal_bonus_total:  0.0000	llm_fd_shaping_triggers: 3000.0000	llm_fd_target_miscoordination_ratio:  0.0027
+pg_loss:                   0.0430	pi_max:                    0.6906	q_taken_mean:              3.9606	return_mean:               0.6577
+return_std:                0.3725	target_mean:               3.9067	td_error_abs:              2.1784	test_ep_length_mean:      46.5900
+test_return_mean:          0.3569	test_return_std:           0.2481	
+[INFO 10:44:32] my_main Recent Stats | t_env:     455474 | Episode:     9940
+advantage_mean:           -0.1071	agent_grad_norm:           1.9662	critic_grad_norm:         33.9992	critic_loss:               9.9374
+ep_length_mean:           39.6570	llm_fd_curriculum_inefficient_exploration_weight:  0.9973	llm_fd_curriculum_target_miscoordination_weight:  0.0027	llm_fd_inefficient_exploration_ratio:  0.9973
+llm_fd_records:          3000.0000	llm_fd_shaping_avg_penalty_per_trigger:  0.0122	llm_fd_shaping_avg_steps_per_trigger: 51.0000	llm_fd_shaping_episode_steps_total:153000.0000
+llm_fd_shaping_penalty_total: 36.6282	llm_fd_shaping_terminal_bonus_total:  0.0000	llm_fd_shaping_triggers: 3000.0000	llm_fd_target_miscoordination_ratio:  0.0027
+pg_loss:                   0.0958	pi_max:                    0.7004	q_taken_mean:              4.5670	return_mean:               0.6920
+return_std:                0.3647	target_mean:               4.4599	td_error_abs:              2.1598	test_ep_length_mean:      46.5900
+test_return_mean:          0.3569	test_return_std:           0.2481	
+[INFO 10:44:57] my_main Recent Stats | t_env:     480794 | Episode:    10610
+advantage_mean:           -0.1326	agent_grad_norm:           1.9644	critic_grad_norm:         36.7866	critic_loss:               9.0758
+ep_length_mean:           38.8742	llm_fd_curriculum_inefficient_exploration_weight:  0.9973	llm_fd_curriculum_target_miscoordination_weight:  0.0027	llm_fd_inefficient_exploration_ratio:  0.9973
+llm_fd_records:          3000.0000	llm_fd_shaping_avg_penalty_per_trigger:  0.0122	llm_fd_shaping_avg_steps_per_trigger: 51.0000	llm_fd_shaping_episode_steps_total:153000.0000
+llm_fd_shaping_penalty_total: 36.6282	llm_fd_shaping_terminal_bonus_total:  0.0000	llm_fd_shaping_triggers: 3000.0000	llm_fd_target_miscoordination_ratio:  0.0027
+pg_loss:                   0.1206	pi_max:                    0.7098	q_taken_mean:              5.5034	return_mean:               0.7144
+return_std:                0.3604	target_mean:               5.3708	td_error_abs:              2.1653	test_ep_length_mean:      46.5900
+test_return_mean:          0.3569	test_return_std:           0.2481	
+[INFO 10:45:16] my_main LLM_FD_ACCOUNTING_FINAL avg_penalty_per_trigger=0.012209400000000257 avg_steps_per_trigger=51.0 episode_steps_total=153000 penalty_total=36.628200000000774 terminal_bonus_total=0.0 triggers=3000
+[INFO 10:45:16] my_main Finished Training
+[DEBUG 10:45:17] my_main Finished after 0:06:53.
+[INFO 10:45:17] pymarl Completed after 0:06:53
+Exiting Main
+Stopping all threads
+Thread Thread-1 is alive! Is daemon: False
+Thread joined
+Exiting script
+[DEBUG 10:45:17] pymarl Stopping Heartbeat
