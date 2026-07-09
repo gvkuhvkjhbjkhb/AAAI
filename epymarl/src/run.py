@@ -51,6 +51,8 @@ def run(_run, _config, _log):
     unique_token = (
         f"{_config['name']}_seed{_config['seed']}_{map_name}_{datetime.datetime.now()}"
     )
+    unique_token = unique_token.replace(":", "_").replace(" ", "_").replace("/", "_")
+    unique_token = unique_token.replace(":", "_").replace(" ", "_").replace("/", "_")
 
     args.unique_token = unique_token
     if args.use_tensorboard:
@@ -206,6 +208,14 @@ def run_sequential(args, logger):
         from llm_diagnosis.failure_aware_pbrs import FailureAwarePBRS
 
         fd_reward_intervention = FailureAwarePBRS(args)
+    elif intervention_mode == "dg_pbs":
+        from llm_diagnosis.diagnosis_gated_pbrs import DiagnosisGatedPBRS
+
+        fd_reward_intervention = DiagnosisGatedPBRS(args)
+    elif intervention_mode == "fme":
+        from llm_diagnosis.failure_mode_exploration import FailureModeExploration
+
+        fd_reward_intervention = FailureModeExploration(args)
     elif intervention_mode == "random_type":
         from llm_diagnosis.reward_intervention import RandomTypeFailureRewardIntervention
 
