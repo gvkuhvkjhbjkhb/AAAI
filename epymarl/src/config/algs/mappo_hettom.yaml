@@ -1,0 +1,36 @@
+# --- MAPPO with HetToM offline intent injection ---
+# Layer-2 config: standard MAPPO + periodic offline ToM intent features
+# injected as extra observation context. Does NOT alter the optimal-policy
+# guarantee (intents are observation-side only, no reward change).
+
+action_selector: "soft_policies"
+mask_before_softmax: True
+runner: "parallel"
+buffer_size: 10
+batch_size_run: 10
+batch_size: 10
+target_update_interval_or_tau: 0.01
+lr: 0.0003
+hidden_dim: 128
+obs_agent_id: True
+obs_last_action: False
+obs_individual_obs: False
+agent_output_type: "pi_logits"
+learner: "ppo_learner"
+entropy_coef: 0.001
+use_rnn: True
+standardise_returns: False
+standardise_rewards: True
+q_nstep: 5
+critic_type: "cv_critic"
+epochs: 4
+eps_clip: 0.2
+name: "mappo_hettom"
+t_max: 1000000
+
+# HetToM intent injection (Layer 2)
+hettom_enabled: True
+hettom_intent_dim: 4          # SEEK/COOP/EXPLORE/IDLE one-hot
+hettom_inject_interval: 50    # re-extract intents every K episodes
+hettom_intent_path: ""        # set by launcher
+hettom_inject_mode: "obs"     # "obs" = concat to observation

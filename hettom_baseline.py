@@ -138,10 +138,68 @@ def make_coordination(n_agents=2, n_actions=3, bonus=2.0):
     )
 
 
+def make_battle_of_the_sexes():
+    """2-player Battle of the Sexes.
+    Actions: 0=Opera, 1=Football.
+    Payoff matrix:
+                 Opera      Football
+      Opera    (3,2)       (0,0)
+      Football (0,0)       (2,3)
+    Two pure Nash equilibria: (Opera,Opera) and (Football,Football), but with
+    conflicting preferences. Tests coordination under preference asymmetry —
+    a harder case for ToM (agents must infer the other's preferred equilibrium).
+    """
+    payoff_matrix = {
+        (0, 0): (3, 2),
+        (0, 1): (0, 0),
+        (1, 0): (0, 0),
+        (1, 1): (2, 3),
+    }
+    def payoff(actions):
+        return payoff_matrix[(actions[0], actions[1])]
+    return MatrixGame(
+        name="battle_of_the_sexes",
+        n_agents=2,
+        n_actions=2,
+        action_names=["Opera", "Football"],
+        payoff=payoff,
+    )
+
+
+def make_chicken():
+    """2-player Chicken (Hawk-Dove).
+    Actions: 0=Dove, 1=Hawk.
+    Payoff matrix:
+                 Dove       Hawk
+      Dove     (3,3)       (1,5)
+      Hawk     (5,1)       (0,0)
+    Two pure Nash equilibria: (Hawk,Dove) and (Dove,Hawk). Tests anti-
+    coordination under conflict — the worst outcome is mutual Hawk (crash).
+    Directly probes LLM risk appetite and ToM (predicting defection).
+    """
+    payoff_matrix = {
+        (0, 0): (3, 3),
+        (0, 1): (1, 5),
+        (1, 0): (5, 1),
+        (1, 1): (0, 0),
+    }
+    def payoff(actions):
+        return payoff_matrix[(actions[0], actions[1])]
+    return MatrixGame(
+        name="chicken",
+        n_agents=2,
+        n_actions=2,
+        action_names=["Dove", "Hawk"],
+        payoff=payoff,
+    )
+
+
 GAMES = {
     "stag_hunt": make_stag_hunt,
     "public_goods": lambda: make_public_goods(n_agents=4),
     "coordination": lambda: make_coordination(n_agents=2, n_actions=3),
+    "battle_of_the_sexes": make_battle_of_the_sexes,
+    "chicken": make_chicken,
 }
 
 
@@ -245,23 +303,6 @@ class LLMAgent:
         parts.append(instr)
         return "\n\n".join(parts)
 
-    def _build_tom_prompt(self, game, obs, teammate_ids):
-        """Ask this agent to predict each teammate's next action."""
-        role_line = f"You are Agent {self.agent_id}, role: {self.role_label}."
-        game_line = (
-            f"Game: {game.base.name}. Teammate actions: "
-            + ", ".join(f"{i}={n}" for i, n in enumerate(game.base.action_names))
-            + "."
-        )
-        obs_line = f"Observation:\n{obs}"
-        tids = ", ".join(str(t) for t in teammate_ids)
-        instr = (
-            f"Predict each teammate's next action. Reply with ONLY a JSON object "
-            f'mapping teammate id to action integer, e.g. {{"2": 0, "3": 1}} for '
-            f"teammates {tids}. No other text."
-        )
-        return "\n\n".join([role_line, game_line, obs_line, instr])
-
     # ---- low-level LLM call ----
     def _generate(self, prompt, max_new_tokens=8):
         self._ensure_model()
@@ -285,7 +326,7 @@ class LLMAgent:
         gen = out[0, inputs["input_ids"].shape[1]:]
         return self._tokenizer.decode(gen, skip_special_tokens=True).strip()
 
-    # ---- action parsing ----
+    # ---- action / ToM parsing ----
     def _parse_action(self, text, n_actions):
         for tok in text.replace(",", " ").split():
             if tok.isdigit():
@@ -309,14 +350,74 @@ class LLMAgent:
                 preds[t] = self._rng.randrange(n_actions)
         return preds
 
+    def _build_recursive_tom_prompt(self, game, obs, teammate_ids, order,
+                                    lower_order_preds=None):
+        """Build a ToM prompt of the given recursive order.
+
+        order=1: "what will teammate X do?"  (predict teammate's action)
+        order=2: "what does teammate X think I will do?"  (predict teammate's
+                 belief about my action)
+        order=3: "what does teammate X think I think X will do?" (one more level)
+
+        lower_order_preds carries the predictions from order-1 so the prompt
+        can condition on them (chain the recursion).
+        """
+        role_line = f"You are Agent {self.agent_id}, role: {self.role_label}."
+        game_line = (
+            f"Game: {game.base.name}. Actions: "
+            + ", ".join(f"{i}={n}" for i, n in enumerate(game.base.action_names))
+            + "."
+        )
+        obs_line = f"Observation:\n{obs}"
+        tids = ", ".join(str(t) for t in teammate_ids)
+        if order == 1:
+            question = (
+                f"Predict each teammate's next action. Consider what each "
+                f"teammate would rationally choose given the same observation.")
+        elif order == 2:
+            question = (
+                f"Now put yourself in each teammate's shoes: what action does "
+                f"each teammate think YOU will choose? This is second-order "
+                f"Theory of Mind.")
+        else:
+            question = (
+                f"Go one level deeper: what does each teammate think you "
+                f"believe THEY will choose? This is order-{order} Theory of Mind.")
+        context = ""
+        if lower_order_preds:
+            context = "Your lower-order ToM predictions so far:\n"
+            for o, preds in lower_order_preds.items():
+                ctx = ", ".join(f"Agent{t}->{a}" for t, a in preds.items())
+                context += f"  order {o}: {ctx}\n"
+        instr = (
+            f"Reply with ONLY a JSON object mapping teammate id to action "
+            f'integer, e.g. {{"2": 0, "3": 1}} for teammates {tids}. No other text.')
+        parts = [role_line, game_line, obs_line]
+        if context:
+            parts.append(context)
+        parts.append(question)
+        parts.append(instr)
+        return "\n\n".join(parts)
+
     # ---- public API ----
     def act(self, game, obs, teammate_ids):
+        """Choose an action. If use_tom, run recursive ToM reasoning up to
+        tom_order levels, then condition the action choice on the final
+        (highest-order) prediction."""
         teammate_preds = None
         if self.use_tom:
-            tom_prompt = self._build_tom_prompt(game, obs, teammate_ids)
-            tom_text = self._generate(tom_prompt, max_new_tokens=32)
-            teammate_preds = self._parse_tom_json(tom_text, teammate_ids,
-                                                   game.base.n_actions)
+            # recursive ToM chain: order 1, 2, ..., tom_order
+            chain = {}
+            for order in range(1, self.tom_order + 1):
+                lower = chain if chain else None
+                prompt = self._build_recursive_tom_prompt(
+                    game, obs, teammate_ids, order, lower)
+                text = self._generate(prompt, max_new_tokens=32)
+                preds = self._parse_tom_json(text, teammate_ids,
+                                             game.base.n_actions)
+                chain[order] = preds
+            # use the highest-order prediction as the conditioning signal
+            teammate_preds = chain[self.tom_order]
         prompt = self._build_action_prompt(game, obs, teammate_preds)
         text = self._generate(prompt, max_new_tokens=8)
         action = self._parse_action(text, game.base.n_actions)
@@ -404,8 +505,25 @@ def run_episode(game, agents, horizon, memory):
     return trajectory
 
 
-def compute_metrics(episodes, game):
-    """Compute the 4 core metrics across a list of episodes."""
+def _bootstrap_ci(values, n_boot=2000, ci=0.95, rng=None):
+    """Bootstrap confidence interval for the mean of a list of scalars."""
+    if not values:
+        return float("nan"), float("nan")
+    arr = np.asarray(values, dtype=float)
+    rng = rng or np.random.default_rng(0)
+    boots = rng.choice(arr, size=(n_boot, len(arr)), replace=True).mean(axis=1)
+    lo = float(np.percentile(boots, (1 - ci) / 2 * 100))
+    hi = float(np.percentile(boots, (1 + ci) / 2 * 100))
+    return lo, hi
+
+
+def compute_metrics(episodes, game, n_boot=2000, seed=0):
+    """Compute the 4 core metrics across a list of episodes, with bootstrap
+    95% confidence intervals on per-episode scalars (cooperation payoff) and
+    on the ToM accuracy rate. Diversity/convergence are distribution-level and
+    reported as point estimates (CI computed at the multi-seed aggregation
+    stage in analyze_layer1.py)."""
+    rng = np.random.default_rng(seed)
     n_a = game.n_actions
     # 1. perspective diversity: mean pairwise KL of per-agent action histograms
     action_counts = [np.zeros(n_a) for _ in range(game.n_agents)]
@@ -425,10 +543,11 @@ def compute_metrics(episodes, game):
             kls.append(float(np.sum(p * np.log(p / q))))
     perspective_div = float(np.mean(kls)) if kls else 0.0
 
-    # 2. cooperation payoff: mean team return per episode
-    team_returns = [sum(s["rewards"][0] for s in ep) / len(ep)
-                    for ep in episodes]  # avg per-agent per-round
-    coop_payoff = float(np.mean(team_returns)) if team_returns else 0.0
+    # 2. cooperation payoff: per-episode mean team return (per agent per round)
+    per_ep_payoffs = [float(np.mean([s["rewards"][0] for s in ep]))
+                      for ep in episodes]
+    coop_payoff = float(np.mean(per_ep_payoffs)) if per_ep_payoffs else 0.0
+    payoff_lo, payoff_hi = _bootstrap_ci(per_ep_payoffs, n_boot, 0.95, rng)
 
     # 3. equilibrium convergence: 1 - normalized action-distribution drift
     #    between first and second half of episodes
@@ -447,26 +566,30 @@ def compute_metrics(episodes, game):
     tom_acc = []
     for ep in episodes:
         for s in ep:
-            for i, preds in enumerate(s["tom_preds"]):
+            for preds in s["tom_preds"]:
                 if not preds:
                     continue
-                for j, a_j in enumerate(s["actions"]):
-                    other_id = [ag.agent_id for ag in []]  # placeholder
-                # map preds (by agent_id) to actual teammate actions
                 for tid, pred in preds.items():
-                    # find the agent index with this id (1-based)
                     idx = tid - 1 if isinstance(tid, int) else int(tid) - 1
                     if 0 <= idx < len(s["actions"]):
                         tom_acc.append(1.0 if pred == s["actions"][idx] else 0.0)
-    tom_accuracy = float(np.mean(tom_acc)) if tom_acc else float("nan")
+    if tom_acc:
+        tom_accuracy = float(np.mean(tom_acc))
+        tom_lo, tom_hi = _bootstrap_ci(tom_acc, n_boot, 0.95, rng)
+    else:
+        tom_accuracy = float("nan")
+        tom_lo = tom_hi = float("nan")
 
     return {
         "perspective_diversity": perspective_div,
         "cooperation_payoff": coop_payoff,
+        "cooperation_payoff_ci": [payoff_lo, payoff_hi],
         "equilibrium_convergence": convergence,
         "tom_prediction_accuracy": tom_accuracy,
+        "tom_prediction_accuracy_ci": [tom_lo, tom_hi],
         "n_episodes": len(episodes),
         "action_dist_agent1": dists[0].tolist() if dists else [],
+        "per_episode_payoffs": per_ep_payoffs,
     }
 
 
@@ -537,15 +660,17 @@ def run_config(cfg, n_episodes, out_dir, log_every=10):
                 elapsed = time.time() - t0
                 print(f"[{cell}] ep {ep_idx+1}/{n_episodes}  "
                       f"({elapsed:.0f}s)")
-    metrics = compute_metrics(episodes, game)
+    metrics = compute_metrics(episodes, game, n_boot=2000, seed=cfg.get("seed", 0))
     metrics["cell"] = cell
     metrics["wall_time_s"] = time.time() - t0
     metrics["config"] = {k: v for k, v in cfg.items()
                          if k not in ("models_het", "temps_het", "roles")}
     with open(os.path.join(cell_dir, "metrics.json"), "w") as f:
         json.dump(metrics, f, indent=2)
+    pc = metrics.get("cooperation_payoff_ci", [float("nan"), float("nan")])
     print(f"[{cell}] metrics: diversity={metrics['perspective_diversity']:.4f} "
           f"payoff={metrics['cooperation_payoff']:.4f} "
+          f"(CI[{pc[0]:.3f},{pc[1]:.3f}]) "
           f"conv={metrics['equilibrium_convergence']:.4f} "
           f"tom_acc={metrics['tom_prediction_accuracy']}")
     return metrics
@@ -574,7 +699,8 @@ def main():
     ap.add_argument("--temps_het", type=float, nargs="+",
                     default=[0.5, 0.8, 1.0])
     ap.add_argument("--tom_order", type=int, default=1)
-    ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--seeds", type=int, nargs="+", default=[42],
+                    help="one or more seeds; each runs a full matrix")
     ap.add_argument("--out_dir", type=str,
                     default="results/hettom_layer1")
     ap.add_argument("--log_every", type=int, default=10)
@@ -583,8 +709,6 @@ def main():
                          "end-to-end pipeline testing without GPU/models)")
     args = ap.parse_args()
 
-    random.seed(args.seed)
-    np.random.seed(args.seed)
     os.makedirs(args.out_dir, exist_ok=True)
 
     if args.mock:
@@ -602,34 +726,61 @@ def main():
     if not args.matrix:
         ap.error("provide --config YAML or --matrix")
 
-    configs = make_matrix_configs(args)
-    all_metrics = []
-    for cfg in configs:
-        m = run_config(cfg, args.episodes, args.out_dir, args.log_every)
-        all_metrics.append(m)
+    # multi-seed: each seed runs a full 4-cell matrix into seed_<n>/
+    all_seed_metrics = []
+    for seed in args.seeds:
+        random.seed(seed)
+        np.random.seed(seed)
+        seed_dir = os.path.join(args.out_dir, f"seed_{seed}") \
+                   if len(args.seeds) > 1 else args.out_dir
+        os.makedirs(seed_dir, exist_ok=True)
+        args.seed = seed
+        configs = make_matrix_configs(args)
+        seed_metrics = []
+        for cfg in configs:
+            cfg["seed"] = seed
+            m = run_config(cfg, args.episodes, seed_dir, args.log_every)
+            m["seed"] = seed
+            seed_metrics.append(m)
+        all_seed_metrics.extend(seed_metrics)
+        # per-seed summary
+        _write_summary(seed_metrics,
+                       os.path.join(seed_dir, "summary.csv"))
 
-    # write summary CSV + table
-    summary_path = os.path.join(args.out_dir, "summary.csv")
-    with open(summary_path, "w", newline="") as f:
+    # cross-seed aggregate summary
+    _write_summary(all_seed_metrics,
+                   os.path.join(args.out_dir, "summary_all_seeds.csv"))
+    _print_summary(all_seed_metrics)
+
+
+def _write_summary(metrics_list, path):
+    with open(path, "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["cell", "perspective_diversity", "cooperation_payoff",
+        w.writerow(["seed", "cell", "perspective_diversity",
+                    "cooperation_payoff", "payoff_ci_lo", "payoff_ci_hi",
                     "equilibrium_convergence", "tom_prediction_accuracy",
-                    "n_episodes", "wall_time_s"])
-        for m in all_metrics:
-            w.writerow([m["cell"], m["perspective_diversity"],
-                        m["cooperation_payoff"], m["equilibrium_convergence"],
-                        m["tom_prediction_accuracy"], m["n_episodes"],
-                        f"{m['wall_time_s']:.1f}"])
-    print("\n=== Matrix summary ===")
-    print(f"{'cell':<12} {'diversity':>10} {'payoff':>8} {'conv':>8} "
-          f"{'tom_acc':>8}")
-    for m in all_metrics:
+                    "tom_ci_lo", "tom_ci_hi", "n_episodes", "wall_time_s"])
+        for m in metrics_list:
+            pc = m.get("cooperation_payoff_ci", [float("nan"), float("nan")])
+            tc = m.get("tom_prediction_accuracy_ci", [float("nan"), float("nan")])
+            w.writerow([m.get("seed", ""), m["cell"],
+                        m["perspective_diversity"], m["cooperation_payoff"],
+                        pc[0], pc[1], m["equilibrium_convergence"],
+                        m["tom_prediction_accuracy"], tc[0], tc[1],
+                        m["n_episodes"], f"{m['wall_time_s']:.1f}"])
+
+
+def _print_summary(metrics_list):
+    print("\n=== Matrix summary (all seeds) ===")
+    print(f"{'seed':>5} {'cell':<12} {'diversity':>10} {'payoff':>8} "
+          f"{'conv':>8} {'tom_acc':>8}")
+    for m in metrics_list:
         ta = m["tom_prediction_accuracy"]
         ta_s = f"{ta:.3f}" if isinstance(ta, float) and ta == ta else "nan"
-        print(f"{m['cell']:<12} {m['perspective_diversity']:>10.4f} "
+        print(f"{m.get('seed',''):>5} {m['cell']:<12} "
+              f"{m['perspective_diversity']:>10.4f} "
               f"{m['cooperation_payoff']:>8.3f} "
               f"{m['equilibrium_convergence']:>8.3f} {ta_s:>8}")
-    print(f"\nSummary written to {summary_path}")
 
 
 # =============================================================================
@@ -641,10 +792,17 @@ def _install_mock():
     so the full pipeline (env -> prompt -> parse -> metrics) can be tested
     on CPU in seconds before committing GPU hours."""
     def mock_generate(self, prompt, max_new_tokens=8):
-        n = self._rng.randrange(2)
         if "JSON" in prompt:
-            return json.dumps({"2": n, "3": n})  # dummy teammate preds
-        return str(n)
+            # produce a JSON dict of teammate predictions.
+            # parse teammate ids from the prompt to size the output.
+            preds = {}
+            for tok in prompt.replace(",", " ").split():
+                if tok.isdigit():
+                    tid = int(tok)
+                    if tid != self.agent_id and tid not in preds:
+                        preds[tid] = self._rng.randrange(2)
+            return json.dumps({str(k): v for k, v in preds.items()})
+        return str(self._rng.randrange(2))
     LLMAgent._generate = mock_generate
     print("[mock] LLM generation replaced with random (no GPU/models needed)")
 
