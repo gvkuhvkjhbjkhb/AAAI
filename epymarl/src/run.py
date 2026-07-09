@@ -1,5 +1,6 @@
 import datetime
 import os
+import numpy as np
 from os.path import dirname, abspath
 import pprint
 import shutil
@@ -16,6 +17,7 @@ from learners import REGISTRY as le_REGISTRY
 from llm_diagnosis import FailureTrajectoryRecorder
 from llm_diagnosis.curriculum_scheduler import FailureAwareCurriculum
 from llm_diagnosis.reward_intervention import FailureRewardIntervention
+from llm_diagnosis.q_shaping import QShaper
 from runners import REGISTRY as r_REGISTRY
 from utils.general_reward_support import test_alg_config_supports_reward
 from utils.logging import Logger
@@ -215,12 +217,37 @@ def run_sequential(args, logger):
     else:
         fd_reward_intervention = FailureRewardIntervention(args)
 
+    qs_shaper = QShaper(args)
+
     while runner.t_env <= args.t_max:
         # Run for a whole episode at a time
         episode_batch = runner.run(test_mode=False)
         fd_diagnoses = fd_recorder.process_batch(episode_batch, runner.t_env, episode)
         fd_curriculum.update(fd_diagnoses)
         episode_batch = fd_reward_intervention.apply(episode_batch, fd_diagnoses, runner.t_env)
+        if qs_shaper.enabled:
+            qs_offsets = qs_shaper.compute_shaping_reward(episode_batch, runner.t_env)
+            if qs_offsets is not None:
+                rewards = episode_batch.data.transition_data["reward"]
+                filled = episode_batch.data.transition_data["filled"]
+                offsets = qs_offsets.to(rewards.device)
+                if rewards.shape[0] == offsets.shape[0] and rewards.shape[1] >= offsets.shape[1]:
+                    n = offsets.shape[1]
+                    rewards[:, :n, :] += offsets
+                qs_returns = []
+                if hasattr(rewards, 'detach'):
+                    r_np = rewards.detach().cpu().numpy()
+                    f_np = filled.detach().cpu().numpy()
+                else:
+                    r_np = np.asarray(rewards)
+                    f_np = np.asarray(filled)
+                for bi in range(r_np.shape[0]):
+                    valid = f_np[bi, :, 0].astype(bool) if f_np.ndim >= 2 else np.ones(r_np.shape[1], dtype=bool)
+                    n2 = int(valid.sum())
+                    if n2 > 0:
+                        qs_returns.append(float(r_np[bi, :n2, 0].sum()))
+                if qs_returns:
+                    qs_shaper.update_weights(qs_returns, fd_diagnoses)
         buffer.insert_episode_batch(episode_batch)
 
         if buffer.can_sample(args.batch_size):
