@@ -136,7 +136,7 @@ def aggregate(by_cell, metric):
         vals = []
         for m in by_cell.get(cell, []):
             v = m.get(metric, float("nan"))
-            if v == v:  # not nan
+            if v is not None and v == v:  # not None/nan
                 vals.append(float(v))
         if vals:
             arr = np.asarray(vals)
@@ -226,8 +226,9 @@ def analyze(results_dir, out_dir):
     for cell in CELLS:
         for m in by_cell.get(cell, []):
             s = m.get("config", {}).get("seed", m.get("seed"))
-            if s is not None:
-                seed_payoff[cell][s] = m.get("cooperation_payoff", float("nan"))
+            v = m.get("cooperation_payoff", float("nan"))
+            if s is not None and v is not None and v == v:
+                seed_payoff[cell][s] = float(v)
     for a, b, _label in comparisons:
         common = sorted(set(seed_payoff[a]) & set(seed_payoff[b]))
         if len(common) >= 3:
