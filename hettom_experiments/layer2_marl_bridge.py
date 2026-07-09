@@ -48,6 +48,22 @@ from collections import defaultdict
 import numpy as np
 
 
+# Resolve repo root: this file lives in <repo>/hettom_experiments/, so the
+# repo root is one level up. All EPyMARL / results paths are anchored there
+# so the scripts work regardless of the current working directory.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_EPYMARL_DIR = os.path.join(_REPO_ROOT, "epymarl")
+_RESULTS_DIR = os.path.join(_REPO_ROOT, "results")
+_CONFIG_ALGS_DIR = os.path.join(_EPYMARL_DIR, "src", "config", "algs")
+
+
+def _abs(path):
+    """Make a path absolute w.r.t. repo root if it isn't already."""
+    if os.path.isabs(path):
+        return path
+    return os.path.join(_REPO_ROOT, path)
+
+
 # =============================================================================
 # 1. Offline ToM intent feature extraction (mirrors offline_relabel.py)
 # =============================================================================
@@ -155,8 +171,10 @@ def build_intent_features(layer1_dir, out_path, n_samples=200, window=10,
 
     In mock mode, uses random intents to test the pipeline without GPU.
     """
+    layer1_dir = _abs(layer1_dir)
+    out_path = _abs(out_path)
     # try to load real LBF trajectories; if none, generate synthetic ones
-    traj_path = os.path.join(layer1_dir, "..", "lbf_trajectories.jsonl")
+    traj_path = os.path.join(_RESULTS_DIR, "lbf_trajectories.jsonl")
     trajectories = []
     if os.path.exists(traj_path):
         with open(traj_path) as f:
@@ -256,7 +274,9 @@ hettom_inject_mode: "obs"     # "obs" = concat to observation
 """
 
 
-def write_config(out_dir="epymarl/src/config/algs"):
+def write_config(out_dir=None):
+    out_dir = out_dir or _CONFIG_ALGS_DIR
+    out_dir = _abs(out_dir)
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, "mappo_hettom.yaml")
     with open(path, "w") as f:
@@ -273,15 +293,17 @@ def launch(config, seeds, env_key="lbforaging:Foraging-10x10-3p-3f-v3",
            t_max=1000000, time_limit=50, out_dir="results/hettom_layer2",
            intent_path=None, mock=False, dry_run=False):
     """Launch MAPPO training for each seed, mirroring run_qs_quick_test.sh."""
+    out_dir = _abs(out_dir)
     os.makedirs(out_dir, exist_ok=True)
     env_config = "gymma"
-    extra = (f"hettom_enabled=True hettom_intent_path={intent_path or 'none'} "
+    intent_abs = _abs(intent_path) if intent_path else "none"
+    extra = (f"hettom_enabled=True hettom_intent_path={intent_abs} "
              f"hettom_inject_interval=50")
     for seed in seeds:
         seed_dir = os.path.join(out_dir, f"seed_{seed}")
         os.makedirs(seed_dir, exist_ok=True)
         log = os.path.join(seed_dir, f"mappo_hettom_seed{seed}.log")
-        cmd = (f"cd epymarl && CUDA_VISIBLE_DEVICES=0 python3 src/main.py "
+        cmd = (f"cd {_EPYMARL_DIR} && CUDA_VISIBLE_DEVICES=0 python3 src/main.py "
                f"--config={config} --env-config={env_config} with "
                f'env_args.key="{env_key}" env_args.time_limit={time_limit} '
                f"t_max={t_max} use_cuda=True test_nepisode=5 test_interval=50000 "
@@ -309,7 +331,7 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     p_prepare = sub.add_parser("prepare", help="write the mappo_hettom config")
-    p_prepare.add_argument("--out_dir", default="epymarl/src/config/algs")
+    p_prepare.add_argument("--out_dir", default=None)
 
     p_inject = sub.add_parser("inject", help="build offline ToM intent features")
     p_inject.add_argument("--layer1_dir", default="results/hettom_layer1")
