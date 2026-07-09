@@ -673,6 +673,19 @@ def run_config(cfg, n_episodes, out_dir, log_every=10):
           f"(CI[{pc[0]:.3f},{pc[1]:.3f}]) "
           f"conv={metrics['equilibrium_convergence']:.4f} "
           f"tom_acc={metrics['tom_prediction_accuracy']}")
+    # free GPU memory between cells so the 4-cell matrix does not accumulate
+    # models within one process (science is unchanged; only memory hygiene)
+    try:
+        del agents
+        import gc
+        gc.collect()
+        try:
+            import torch
+            torch.cuda.empty_cache()
+        except Exception:
+            pass
+    except Exception:
+        pass
     return metrics
 
 
@@ -731,8 +744,7 @@ def main():
     for seed in args.seeds:
         random.seed(seed)
         np.random.seed(seed)
-        seed_dir = os.path.join(args.out_dir, f"seed_{seed}") \
-                   if len(args.seeds) > 1 else args.out_dir
+        seed_dir = os.path.join(args.out_dir, f"seed_{seed}")
         os.makedirs(seed_dir, exist_ok=True)
         args.seed = seed
         configs = make_matrix_configs(args)

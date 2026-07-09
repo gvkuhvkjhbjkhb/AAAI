@@ -190,7 +190,7 @@ def analyze(results_dir, out_dir):
         pa, pb = payoff_agg[a][5], payoff_agg[b][5]
         da, db = div_agg[a][5], div_agg[b][5]
         if len(pa) >= 3 and len(pb) >= 3:
-            u, p = mann_whitneyu(pa, pb) if _scipy_ok() else mann_whitney_u(pa, pb)
+            u, p = mann_whitney_u(pa, pb)
             r = rank_biserial(pa, pb)
         else:
             u, p, r = float("nan"), float("nan"), float("nan")
@@ -199,7 +199,7 @@ def analyze(results_dir, out_dir):
         lines.append(f"  payoff  {a} - {b}: delta={fmt(delta)} "
                      f"U={fmt(u, 8, 1)} p={fmt(p)} r={fmt(r)}")
         if len(da) >= 3 and len(db) >= 3:
-            _, pd = mann_whitneyu(da, db) if _scipy_ok() else mann_whitney_u(da, db)
+            _, pd = mann_whitney_u(da, db)
         else:
             pd = float("nan")
         dd = (np.mean(da) - np.mean(db)) if da and db else float("nan")
@@ -239,7 +239,7 @@ def analyze(results_dir, out_dir):
     trap_broken = False
     reasons = []
     if len(pa) >= 3 and len(pb) >= 3:
-        _, p_pay = mann_whitneyu(pa, pb) if _scipy_ok() else mann_whitney_u(pa, pb)
+        _, p_pay = mann_whitney_u(pa, pb)
         lo, hi = bootstrap_ci_mean([a - b for a, b in zip(pa, pb)] if len(pa) == len(pb) else
                                    (np.mean(pa) - np.mean(pb),))
         delta_div = (np.mean(da) - np.mean(db)) if da and db else float("nan")
