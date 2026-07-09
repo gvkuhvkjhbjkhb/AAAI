@@ -99,6 +99,7 @@ class FailureTrajectoryRecorder:
 
     def _write_record(self, record):
         path = os.path.join(self.output_dir, "failure_records.jsonl")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "a", encoding="utf-8") as handle:
             handle.write(json.dumps(record, ensure_ascii=True) + "\n")
         self.records_written += 1

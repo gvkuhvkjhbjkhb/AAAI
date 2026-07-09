@@ -51,6 +51,7 @@ def run(_run, _config, _log):
     unique_token = (
         f"{_config['name']}_seed{_config['seed']}_{map_name}_{datetime.datetime.now()}"
     )
+    unique_token = unique_token.replace(":", "_").replace(" ", "_").replace("/", "_")
 
     args.unique_token = unique_token
     if args.use_tensorboard:
