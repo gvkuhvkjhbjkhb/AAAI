@@ -254,7 +254,8 @@ class LLMAgent:
     """
 
     def __init__(self, agent_id, model_name, temperature, role_label,
-                 use_tom=False, tom_order=1, device="auto", seed=0):
+                 use_tom=False, tom_order=1, device="auto", seed=0,
+                 use_talk=False, adaptive_tom=False):
         self.agent_id = agent_id
         self.model_name = model_name
         self.temperature = max(temperature, 0.01)  # avoid div-by-zero
@@ -266,6 +267,15 @@ class LLMAgent:
         self._model = None
         self._tokenizer = None
         self._device = device
+        # --- cheap-talk channel (Madmoun & Lahlou 2025, EACL 2026) ---
+        self.use_talk = use_talk
+        # --- adaptive ToM (Mu et al. 2026, AAAI 2026): estimate partner's
+        #     ToM order from hit-rate history, align own reasoning depth ---
+        self.adaptive_tom = adaptive_tom
+        # history of (predicted, actual) teammate actions per teammate id
+        self._tom_history = defaultdict(list)
+        # running estimated ToM order per teammate (init to self.tom_order)
+        self._est_tom_order = defaultdict(lambda: self.tom_order)
 
     # ---- lazy model loading (so configs without GPU still parse) ----
     def _ensure_model(self):
@@ -282,7 +292,7 @@ class LLMAgent:
         self._model.eval()
 
     # ---- prompt construction ----
-    def _build_action_prompt(self, game, obs, teammate_preds=None):
+    def _build_action_prompt(self, game, obs, teammate_preds=None, signals=None):
         role_line = f"You are Agent {self.agent_id}, role: {self.role_label}."
         game_line = (
             f"Game: {game.base.name}. You are one of {game.base.n_agents} agents. "
@@ -300,6 +310,11 @@ class LLMAgent:
             for tid, pred in teammate_preds.items():
                 tom_line += f"  Agent {tid}: you predict action {pred}.\n"
             parts.append(tom_line)
+        if self.use_talk and signals:
+            talk_line = "Teammates signaled these intended actions this round:\n"
+            for tid, s in signals.items():
+                talk_line += f"  Agent {tid}: signaled action {s}.\n"
+            parts.append(talk_line)
         parts.append(instr)
         return "\n\n".join(parts)
 
@@ -399,29 +414,106 @@ class LLMAgent:
         parts.append(instr)
         return "\n\n".join(parts)
 
+    # ---- cheap-talk: announce intended action (Madmoun & Lahlou 2025) ----
+    def _build_intent_prompt(self, game, obs, signals):
+        """Build a prompt asking the agent to announce its intended action.
+        `signals` is a dict {teammate_id: announced_intent} of signals
+        received from teammates this round (may be empty on the first call
+        or in no-talk cells)."""
+        role_line = f"You are Agent {self.agent_id}, role: {self.role_label}."
+        game_line = (
+            f"Game: {game.base.name}. Actions: "
+            + ", ".join(f"{i}={n}" for i, n in enumerate(game.base.action_names))
+            + "."
+        )
+        obs_line = f"Observation:\n{obs}"
+        parts = [role_line, game_line, obs_line]
+        if signals:
+            sig_line = "Teammates announced these intended actions this round:\n"
+            for tid, s in signals.items():
+                sig_line += f"  Agent {tid}: intends action {s}.\n"
+            parts.append(sig_line)
+            instr = (
+                "A teammate has signaled their intent. Reply with the single "
+                "integer action YOU intend to take, considering their signal. "
+                "Reply with ONLY the integer.")
+        else:
+            instr = (
+                "Announce the action you intend to take this round. Reply "
+                "with ONLY a single integer in "
+                f"[0, {game.base.n_actions - 1}].")
+        parts.append(instr)
+        return "\n\n".join(parts)
+
+    def announce(self, game, obs, signals):
+        """Cheap-talk: emit intended action before the real action step.
+        Returns an integer action (the announced intent)."""
+        prompt = self._build_intent_prompt(game, obs, signals)
+        text = self._generate(prompt, max_new_tokens=8)
+        return self._parse_action(text, game.base.n_actions)
+
     # ---- public API ----
-    def act(self, game, obs, teammate_ids):
-        """Choose an action. If use_tom, run recursive ToM reasoning up to
-        tom_order levels, then condition the action choice on the final
-        (highest-order) prediction."""
+    def act(self, game, obs, teammate_ids, signals=None):
+        """Choose an action. If use_talk, `signals` (teammates' announced
+        intents) condition the choice. If use_tom, run recursive ToM reasoning
+        up to tom_order levels (or, if adaptive_tom, up to the estimated
+        partner ToM order), then condition the action on the prediction.
+        After acting, update ToM hit-rate history (for A-ToM)."""
         teammate_preds = None
         if self.use_tom:
-            # recursive ToM chain: order 1, 2, ..., tom_order
-            chain = {}
-            for order in range(1, self.tom_order + 1):
-                lower = chain if chain else None
-                prompt = self._build_recursive_tom_prompt(
-                    game, obs, teammate_ids, order, lower)
-                text = self._generate(prompt, max_new_tokens=32)
-                preds = self._parse_tom_json(text, teammate_ids,
-                                             game.base.n_actions)
-                chain[order] = preds
-            # use the highest-order prediction as the conditioning signal
-            teammate_preds = chain[self.tom_order]
-        prompt = self._build_action_prompt(game, obs, teammate_preds)
+            tom_orders_to_run = self._decide_tom_orders(teammate_ids)
+            teammate_preds = {}
+            for tid in teammate_ids:
+                order = tom_orders_to_run.get(tid, self.tom_order)
+                local_chain = {}
+                for o in range(1, order + 1):
+                    lower = local_chain if local_chain else None
+                    prompt = self._build_recursive_tom_prompt(
+                        game, obs, [tid], o, lower)
+                    text = self._generate(prompt, max_new_tokens=32)
+                    preds = self._parse_tom_json(text, [tid],
+                                                 game.base.n_actions)
+                    local_chain[o] = preds
+                # highest-order prediction for this teammate
+                teammate_preds.update(local_chain[order])
+        prompt = self._build_action_prompt(game, obs, teammate_preds, signals)
         text = self._generate(prompt, max_new_tokens=8)
         action = self._parse_action(text, game.base.n_actions)
         return action, teammate_preds
+
+    def _decide_tom_orders(self, teammate_ids):
+        """A-ToM: decide per-teammate ToM reasoning order. If adaptive_tom,
+        estimate partner's ToM order from hit history; else use fixed order."""
+        if not self.adaptive_tom:
+            return {tid: self.tom_order for tid in teammate_ids}
+        out = {}
+        for tid in teammate_ids:
+            hist = self._tom_history.get(tid, [])
+            est = self._est_tom_order[tid]
+            if len(hist) >= 5:
+                # recent hit rate (last 10)
+                recent = hist[-10:]
+                hit_rate = float(np.mean([1.0 if p == a else 0.0
+                                          for p, a in recent]))
+                # if predicting poorly at current order, try a different depth
+                if hit_rate < 0.4 and est < 3:
+                    est = min(est + 1, 3)
+                elif hit_rate > 0.75 and est > 1:
+                    est = max(est - 1, 1)
+                self._est_tom_order[tid] = est
+            out[tid] = est
+        return out
+
+    def update_tom_history(self, teammate_ids, preds, actual_actions):
+        """Record (predicted, actual) per teammate to calibrate A-ToM."""
+        if not preds:
+            return
+        for tid in teammate_ids:
+            if tid in preds:
+                idx = tid - 1 if isinstance(tid, int) else int(tid) - 1
+                if 0 <= idx < len(actual_actions):
+                    self._tom_history[tid].append(
+                        (preds[tid], actual_actions[idx]))
 
 
 # =============================================================================
@@ -472,6 +564,8 @@ def build_agents(config):
             use_tom=use_tom,
             tom_order=config.get("tom_order", 1),
             seed=seed,
+            use_talk=config.get("use_talk", False),
+            adaptive_tom=config.get("adaptive_tom", False),
         ))
     return game, agents
 
@@ -483,22 +577,39 @@ def build_agents(config):
 def run_episode(game, agents, horizon, memory):
     rg = RepeatedGame(base=game, horizon=horizon, memory=memory)
     state = rg.reset()
-    trajectory = []  # list of (round, actions, rewards, tom_preds)
+    trajectory = []  # list of (round, actions, rewards, tom_preds, signals)
+    use_talk = any(getattr(a, "use_talk", False) for a in agents)
     for _ in range(horizon):
         obs = rg.observation_for_agent(state, None)  # shared textual obs
         teammate_ids = [a.agent_id for a in agents]
+        # --- cheap-talk phase: each agent announces intent (Madmoun 2025) ---
+        signals = {}
+        if use_talk:
+            for ag in agents:
+                sig_in = {t: signals[t] for t in signals if t != ag.agent_id}
+                intent = ag.announce(rg, obs, sig_in)
+                signals[ag.agent_id] = intent
+        # --- action phase ---
         actions, tom_preds = [], []
         for ag in agents:
             others = [t for t in teammate_ids if t != ag.agent_id]
-            act, preds = ag.act(rg, obs, others)
+            sig_for = {t: signals[t] for t in others} if use_talk else None
+            act, preds = ag.act(rg, obs, others, sig_for)
             actions.append(act)
             tom_preds.append(preds)
         rewards = rg.step(actions)
+        # --- A-ToM: update ToM hit-rate history (Mu 2026) ---
+        for ag in agents:
+            if getattr(ag, "use_tom", False):
+                ag.update_tom_history(
+                    [t for t in teammate_ids if t != ag.agent_id],
+                    tom_preds[agents.index(ag)], actions)
         trajectory.append({
             "round": state["round"],
             "actions": actions,
             "rewards": rewards,
             "tom_preds": tom_preds,
+            "signals": dict(signals) if use_talk else None,
         })
         state["history"].append((actions, rewards))
         state["round"] += 1
@@ -605,7 +716,11 @@ DEFAULT_MODELS_HET = [
 DEFAULT_MODEL_HOMO = "Qwen/Qwen2.5-7B-Instruct"
 
 def make_matrix_configs(args):
-    """Return the 4 configs for the 2x2 experimental matrix."""
+    """Return configs for the experimental matrix. Base 4 cells (hom/het x
+    noToM/ToM) plus, if --extend, the round-2 cells:
+      cheap-talk channel (Madmoun & Lahlou 2025, EACL 2026): +talk variants
+      adaptive ToM (Mu et al. 2026, AAAI 2026): +atom variants
+    Full extended matrix = 4 base + 4 talk + 2 atom = 10 cells."""
     base = {
         "game": args.game,
         "n_agents": args.n_agents,
@@ -620,11 +735,25 @@ def make_matrix_configs(args):
         "seed": args.seed,
     }
     cells = [
-        ("hom_notom",  dict(homogeneous=True,  use_tom=False)),
-        ("hom_tom",    dict(homogeneous=True,  use_tom=True)),
-        ("het_notom",  dict(homogeneous=False, use_tom=False)),
-        ("het_tom",    dict(homogeneous=False, use_tom=True)),
+        # --- base 4-cell matrix (round 1) ---
+        ("hom_notom",  dict(homogeneous=True,  use_tom=False, use_talk=False, adaptive_tom=False)),
+        ("hom_tom",    dict(homogeneous=True,  use_tom=True,  use_talk=False, adaptive_tom=False)),
+        ("het_notom",  dict(homogeneous=False, use_tom=False, use_talk=False, adaptive_tom=False)),
+        ("het_tom",    dict(homogeneous=False, use_tom=True,  use_talk=False, adaptive_tom=False)),
     ]
+    if getattr(args, "extend", False):
+        cells += [
+            # --- cheap-talk variants (Madmoun & Lahlou 2025) ---
+            ("hom_notom_talk", dict(homogeneous=True,  use_tom=False, use_talk=True,  adaptive_tom=False)),
+            ("hom_tom_talk",   dict(homogeneous=True,  use_tom=True,  use_talk=True,  adaptive_tom=False)),
+            ("het_notom_talk", dict(homogeneous=False, use_tom=False, use_talk=True,  adaptive_tom=False)),
+            ("het_tom_talk",   dict(homogeneous=False, use_tom=True,  use_talk=True,  adaptive_tom=False)),
+            # --- adaptive ToM variants (Mu et al. 2026) ---
+            ("hom_atom",  dict(homogeneous=True,  use_tom=True,  use_talk=False, adaptive_tom=True)),
+            ("het_atom",  dict(homogeneous=False, use_tom=True,  use_talk=False, adaptive_tom=True)),
+            # --- combined: heterogeneity + cheap-talk + A-ToM (full method) ---
+            ("het_atom_talk", dict(homogeneous=False, use_tom=True,  use_talk=True,  adaptive_tom=True)),
+        ]
     out = []
     for name, diff in cells:
         cfg = dict(base)
@@ -720,6 +849,10 @@ def main():
     ap.add_argument("--mock", action="store_true",
                     help="use random agents instead of LLMs (for fast "
                          "end-to-end pipeline testing without GPU/models)")
+    ap.add_argument("--extend", action="store_true",
+                    help="run the extended round-2 matrix: base 4 cells + "
+                         "cheap-talk variants (Madmoun 2025) + adaptive-ToM "
+                         "variants (Mu 2026) + combined het+atom+talk")
     args = ap.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)

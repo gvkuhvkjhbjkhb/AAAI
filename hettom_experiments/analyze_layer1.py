@@ -34,7 +34,9 @@ from collections import defaultdict
 import numpy as np
 
 
-CELLS = ["hom_notom", "hom_tom", "het_notom", "het_tom"]
+CELLS = ["hom_notom", "hom_tom", "het_notom", "het_tom",
+         "hom_notom_talk", "hom_tom_talk", "het_notom_talk", "het_tom_talk",
+         "hom_atom", "het_atom", "het_atom_talk"]
 METRICS = ["perspective_diversity", "cooperation_payoff",
            "equilibrium_convergence", "tom_prediction_accuracy"]
 
@@ -178,11 +180,22 @@ def analyze(results_dir, out_dir):
     # ---- key comparisons ----
     lines.append("--- Key statistical comparisons ---")
     comparisons = [
+        # round-1 (base matrix)
         ("het_tom", "hom_notom", "Full method vs baseline (trap broken?)"),
         ("het_tom", "hom_tom",   "Heterogeneity adds over ToM?"),
         ("het_tom", "het_notom", "ToM adds over heterogeneity?"),
         ("hom_tom", "hom_notom", "ToM alone vs baseline (key 2)"),
         ("het_notom", "hom_notom","Heterogeneity alone vs baseline (key 1)"),
+        # round-2: cheap-talk channel (Madmoun & Lahlou 2025)
+        ("het_notom_talk", "het_notom", "Cheap-talk rescues het cooperation?"),
+        ("het_tom_talk",   "het_tom",   "Cheap-talk adds over het+ToM?"),
+        ("het_tom_talk",   "hom_notom", "het+ToM+talk vs baseline (trap broken?)"),
+        # round-2: adaptive ToM (Mu et al. 2026)
+        ("het_atom", "het_tom", "A-ToM beats fixed ToM in het teams?"),
+        ("hom_atom", "hom_tom", "A-ToM beats fixed ToM in hom teams?"),
+        # round-2: combined full method
+        ("het_atom_talk", "hom_notom", "het+A-ToM+talk vs baseline (trap broken?)"),
+        ("het_atom_talk", "het_tom",   "Combined method vs het+ToM?"),
     ]
     payoff_agg = aggregate(by_cell, "cooperation_payoff")
     div_agg = aggregate(by_cell, "perspective_diversity")
@@ -232,6 +245,7 @@ def analyze(results_dir, out_dir):
     lines.append("=" * 78)
     lines.append("DECISION (pre-registered)")
     lines.append("=" * 78)
+    # round-1 decision: het_tom vs hom_notom
     pa = payoff_agg["het_tom"][5]
     pb = payoff_agg["hom_notom"][5]
     da = div_agg["het_tom"][5]
@@ -247,15 +261,33 @@ def analyze(results_dir, out_dir):
         cond_div = delta_div > 0
         cond_pay = (delta_pay > 0) and (p_pay < 0.05)
         trap_broken = cond_div and cond_pay
-        reasons.append(f"diversity delta={fmt(delta_div)} (>0? {cond_div})")
-        reasons.append(f"payoff delta={fmt(delta_pay)} p={fmt(p_pay)} "
+        reasons.append(f"[round-1 het_tom] diversity delta={fmt(delta_div)} (>0? {cond_div})")
+        reasons.append(f"[round-1 het_tom] payoff delta={fmt(delta_pay)} p={fmt(p_pay)} "
                        f"(<0.05 & >0? {cond_pay})")
     else:
-        reasons.append(f"insufficient seeds (het_tom n={len(pa)}, "
+        reasons.append(f"[round-1 het_tom] insufficient seeds (n={len(pa)}, "
                        f"hom_notom n={len(pb)}); need >=3")
 
+    # round-2 decision: combined method het_atom_talk vs hom_notom
+    pa2 = payoff_agg.get("het_atom_talk", (float("nan"),)*6)[5] if "het_atom_talk" in payoff_agg else []
+    da2 = div_agg.get("het_atom_talk", (float("nan"),)*6)[5] if "het_atom_talk" in div_agg else []
+    if pa2 and pb and len(pa2) >= 3:
+        _, p_pay2 = mann_whitney_u(pa2, pb)
+        delta_div2 = (np.mean(da2) - np.mean(db)) if da2 and db else float("nan")
+        delta_pay2 = np.mean(pa2) - np.mean(pb)
+        cond_div2 = delta_div2 > 0
+        cond_pay2 = (delta_pay2 > 0) and (p_pay2 < 0.05)
+        trap_broken2 = cond_div2 and cond_pay2
+        reasons.append(f"[round-2 het_atom_talk] diversity delta={fmt(delta_div2)} (>0? {cond_div2})")
+        reasons.append(f"[round-2 het_atom_talk] payoff delta={fmt(delta_pay2)} p={fmt(p_pay2)} "
+                       f"(<0.05 & >0? {cond_pay2})")
+        if trap_broken2:
+            trap_broken = True
+    elif pa2:
+        reasons.append(f"[round-2 het_atom_talk] insufficient seeds (n={len(pa2)})")
+
     if trap_broken:
-        lines.append("POSITIVE: Reasoning Trap broken by heterogeneity + ToM.")
+        lines.append("POSITIVE: Reasoning Trap broken by heterogeneity + ToM (+talk/atom).")
         lines.append("  -> Write as positive method paper (AAAI 40-50%).")
     else:
         lines.append("NEGATIVE/PARTIAL: Trap NOT fully broken.")
