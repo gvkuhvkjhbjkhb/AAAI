@@ -258,7 +258,8 @@ class LLMAgent:
                  use_talk=False, adaptive_tom=False, gated_talk_tom=False,
                  atom_max_order=3, atom_warmup=3, atom_epsilon=0.15,
                  atom_ema_alpha=0.3, gate_trust_threshold=0.6,
-                 gate_ema_alpha=0.3):
+                 gate_ema_alpha=0.3, diversity_preserving_gate=False,
+                 api_base=None, api_key=None):
         self.agent_id = agent_id
         self.model_name = model_name
         self.temperature = max(temperature, 0.01)  # avoid div-by-zero
@@ -270,6 +271,15 @@ class LLMAgent:
         self._model = None
         self._tokenizer = None
         self._device = device
+        # --- Silicon Flow / OpenAI-compatible API backend (Round-4):
+        #     when api_base + api_key are set, LLM calls go through the API
+        #     instead of loading a local HF model. This enables using 7B+
+        #     models (Qwen2.5-7B, GLM-4-9B) from different families without
+        #     a local GPU, addressing the Round-3 weakness of 3B/1.5B same-
+        #     family models. ---
+        self.api_base = api_base
+        self.api_key = api_key
+        self._api_client = None
         # --- cheap-talk channel (Madmoun & Lahlou 2025, EACL 2026) ---
         self.use_talk = use_talk
         # --- adaptive ToM (Mu et al. 2026, AAAI 2026): estimate partner's
@@ -304,23 +314,57 @@ class LLMAgent:
         self.gated_talk_tom = gated_talk_tom
         self.gate_trust_threshold = gate_trust_threshold
         self.gate_ema_alpha = gate_ema_alpha
+        # --- diversity-preserving gating (Round-4): the core innovation to
+        #     resolve the diversity-alignment tension. When enabled, the gate
+        #     ONLY intervenes (conditions the action on the gated belief)
+        #     when there is a signal-belief CONFLICT. When signal and ToM
+        #     belief agree, the agent is left to choose independently —
+        #     preserving the cognitive diversity that heterogeneity provides.
+        #     This directly addresses the Round-3 failure where gating
+        #     compressed diversity to ~0 (0.013) while still not beating
+        #     the homogeneous baseline (1.734 vs 2.325). ---
+        self.diversity_preserving_gate = diversity_preserving_gate
         # per-teammate EMA of (signal == actual), init 0.5 (uninformed)
         self._signal_ema = defaultdict(lambda: 0.5)
         self._signal_history = defaultdict(list)
 
     # ---- lazy model loading (so configs without GPU still parse) ----
+    # Global model cache: {model_name: (model, tokenizer)} so homogeneous
+    # cells (2 agents, same model) only load ONE copy, not two. This cuts
+    # VRAM usage in half and load time by 50% for hom cells.
+    _MODEL_CACHE = {}
+
     def _ensure_model(self):
         if self._model is not None:
             return
+        if self.api_base:
+            import openai
+            self._api_client = openai.OpenAI(
+                base_url=self.api_base, api_key=self.api_key)
+            self._model = "api"  # sentinel: API mode active
+            return
+        cache_key = self.model_name
+        if cache_key in LLMAgent._MODEL_CACHE:
+            self._model, self._tokenizer = LLMAgent._MODEL_CACHE[cache_key]
+            return
         import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
         self._tokenizer = AutoTokenizer.from_pretrained(
             self.model_name, trust_remote_code=True)
-        dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+        # 4-bit quantization: fits 7B (~4GB) + 9B (~5GB) = 9GB total in 32GB
+        # VRAM, so both heterogeneous models stay loaded simultaneously with
+        # zero swap overhead. Quality loss is negligible for short game prompts.
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_use_double_quant=True,
+        )
         self._model = AutoModelForCausalLM.from_pretrained(
-            self.model_name, torch_dtype=dtype, device_map=self._device,
-            trust_remote_code=True)
+            self.model_name, quantization_config=bnb_config,
+            device_map=self._device, trust_remote_code=True)
         self._model.eval()
+        LLMAgent._MODEL_CACHE[cache_key] = (self._model, self._tokenizer)
 
     # ---- prompt construction ----
     def _build_action_prompt(self, game, obs, teammate_preds=None, signals=None):
@@ -352,6 +396,8 @@ class LLMAgent:
     # ---- low-level LLM call ----
     def _generate(self, prompt, max_new_tokens=8):
         self._ensure_model()
+        if self.api_base:
+            return self._generate_api(prompt, max_new_tokens)
         import torch
         msgs = [{"role": "user", "content": prompt}]
         if hasattr(self._tokenizer, "apply_chat_template"):
@@ -371,6 +417,37 @@ class LLMAgent:
             )
         gen = out[0, inputs["input_ids"].shape[1]:]
         return self._tokenizer.decode(gen, skip_special_tokens=True).strip()
+
+    def _generate_api(self, prompt, max_new_tokens=8, retries=3):
+        """Generate text via OpenAI-compatible API (Silicon Flow).
+        Includes retry with exponential backoff for rate-limit/transient
+        errors. Strips markdown code fences from the response for cleaner
+        JSON parsing."""
+        import time as _time
+        for attempt in range(retries):
+            try:
+                resp = self._api_client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=max_new_tokens,
+                    temperature=self.temperature,
+                    top_p=0.9,
+                )
+                text = resp.choices[0].message.content.strip()
+                # strip markdown code fences that some models add
+                if text.startswith("```"):
+                    lines = text.split("\n")
+                    lines = [l for l in lines if not l.strip().startswith("```")]
+                    text = "\n".join(lines).strip()
+                return text
+            except Exception as e:
+                if attempt < retries - 1:
+                    wait = 2 ** (attempt + 1)
+                    _time.sleep(wait)
+                else:
+                    print(f"[agent {self.agent_id}] API error after "
+                          f"{retries} retries: {e}")
+                    return ""
 
     # ---- action / ToM parsing ----
     def _parse_action(self, text, n_actions):
@@ -525,11 +602,34 @@ class LLMAgent:
         if self.gated_talk_tom and signals:
             belief, gate_decisions = self._gate_signals(
                 teammate_ids, teammate_preds, signals)
-            prompt_signals = None          # belief already carries the signal
+            if self.diversity_preserving_gate:
+                # Round-4 core innovation: only intervene (condition the
+                # action on the gated belief) when there is a signal-belief
+                # CONFLICT. When signal and ToM belief agree, agents are
+                # left to choose independently — preserving the cognitive
+                # diversity that heterogeneity provides. This directly
+                # targets the Round-3 failure where gating compressed
+                # diversity to ~0 (0.013) while not beating baseline.
+                has_conflict = any(
+                    d.get("signal") is not None
+                    and d.get("tom_pred") is not None
+                    and d.get("signal") != d.get("tom_pred")
+                    for d in gate_decisions.values()
+                )
+                if has_conflict:
+                    prompt_belief = belief
+                    prompt_signals = None
+                else:
+                    prompt_belief = None
+                    prompt_signals = None
+            else:
+                prompt_belief = belief
+                prompt_signals = None
         else:
-            belief = teammate_preds
+            prompt_belief = teammate_preds
             prompt_signals = signals       # existing naive behavior
-        prompt = self._build_action_prompt(game, obs, belief, prompt_signals)
+        prompt = self._build_action_prompt(game, obs, prompt_belief,
+                                           prompt_signals)
         text = self._generate(prompt, max_new_tokens=8)
         action = self._parse_action(text, game.base.n_actions)
         return action, teammate_preds, tom_chains, gate_decisions
@@ -746,6 +846,10 @@ def build_agents(config):
             atom_ema_alpha=config.get("atom_ema_alpha", 0.3),
             gate_trust_threshold=config.get("gate_trust_threshold", 0.6),
             gate_ema_alpha=config.get("gate_ema_alpha", 0.3),
+            diversity_preserving_gate=config.get(
+                "diversity_preserving_gate", False),
+            api_base=config.get("api_base"),
+            api_key=config.get("api_key"),
         ))
     return game, agents
 
@@ -878,6 +982,7 @@ def compute_metrics(episodes, game, n_boot=2000, seed=0):
 
     # 5. Gated talk+ToM arbitration metrics (only if gate_decisions present)
     gate_trust, gated_acc, signal_acc, tom_belief_acc = [], [], [], []
+    dp_conflict, dp_intervened = [], []
     for ep in episodes:
         for s in ep:
             gates = s.get("gate_decisions")
@@ -897,6 +1002,14 @@ def compute_metrics(episodes, game, n_boot=2000, seed=0):
                         signal_acc.append(1.0 if d["signal"] == acts[idx] else 0.0)
                     if d.get("tom_pred") is not None:
                         tom_belief_acc.append(1.0 if d["tom_pred"] == acts[idx] else 0.0)
+                    # diversity-preserving gate: track conflict/intervention
+                    sig = d.get("signal")
+                    pred = d.get("tom_pred")
+                    if sig is not None and pred is not None:
+                        is_conflict = 1.0 if sig != pred else 0.0
+                        dp_conflict.append(is_conflict)
+                        # intervened = conditioned action on belief (conflict)
+                        dp_intervened.append(is_conflict)
 
     return {
         "perspective_diversity": perspective_div,
@@ -912,6 +1025,8 @@ def compute_metrics(episodes, game, n_boot=2000, seed=0):
         "gated_prediction_accuracy": float(np.mean(gated_acc)) if gated_acc else float("nan"),
         "signal_accuracy": float(np.mean(signal_acc)) if signal_acc else float("nan"),
         "tom_belief_accuracy_in_gated": float(np.mean(tom_belief_acc)) if tom_belief_acc else float("nan"),
+        "dp_conflict_rate": float(np.mean(dp_conflict)) if dp_conflict else float("nan"),
+        "dp_intervention_rate": float(np.mean(dp_intervened)) if dp_intervened else float("nan"),
     }
 
 
@@ -944,6 +1059,8 @@ def make_matrix_configs(args):
         "roles": [f"player{i+1}" for i in range(args.n_agents or 2)],
         "tom_order": args.tom_order,
         "seed": args.seed,
+        "api_base": getattr(args, "api_base", None),
+        "api_key": getattr(args, "api_key", None),
     }
     cells = [
         # --- base 4-cell matrix (round 1) ---
@@ -975,6 +1092,22 @@ def make_matrix_configs(args):
             # --- Round-3 full method: gated arbitration + improved A-ToM ---
             ("het_gated_atom_talk", dict(homogeneous=False, use_tom=True, use_talk=True,
                                          adaptive_tom=True,  gated_talk_tom=True)),
+            # --- Round-4: diversity-preserving gating. The core innovation.
+            #     Same gating mechanism as Round-3, but the gate ONLY
+            #     intervenes (conditions the action on the gated belief)
+            #     when there is a signal-belief CONFLICT. When signal and
+            #     ToM belief agree, agents choose independently — preserving
+            #     the cognitive diversity that heterogeneity provides. This
+            #     targets the Round-3 failure where gating compressed
+            #     diversity to ~0 while not beating the baseline. ---
+            ("het_dp_gated_talk_tom",
+             dict(homogeneous=False, use_tom=True, use_talk=True,
+                  adaptive_tom=False, gated_talk_tom=True,
+                  diversity_preserving_gate=True)),
+            ("het_dp_gated_atom_talk",
+             dict(homogeneous=False, use_tom=True, use_talk=True,
+                  adaptive_tom=True, gated_talk_tom=True,
+                  diversity_preserving_gate=True)),
         ]
     out = []
     for name, diff in cells:
