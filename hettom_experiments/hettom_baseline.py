@@ -255,7 +255,10 @@ class LLMAgent:
 
     def __init__(self, agent_id, model_name, temperature, role_label,
                  use_tom=False, tom_order=1, device="auto", seed=0,
-                 use_talk=False, adaptive_tom=False):
+                 use_talk=False, adaptive_tom=False, gated_talk_tom=False,
+                 atom_max_order=3, atom_warmup=3, atom_epsilon=0.15,
+                 atom_ema_alpha=0.3, gate_trust_threshold=0.6,
+                 gate_ema_alpha=0.3):
         self.agent_id = agent_id
         self.model_name = model_name
         self.temperature = max(temperature, 0.01)  # avoid div-by-zero
@@ -276,6 +279,34 @@ class LLMAgent:
         self._tom_history = defaultdict(list)
         # running estimated ToM order per teammate (init to self.tom_order)
         self._est_tom_order = defaultdict(lambda: self.tom_order)
+        # --- improved A-ToM (Round-3): per-order EMA hit-rate tracking +
+        #     epsilon-greedy bandit selection with warmup. Replaces the
+        #     coarse "<0.4 deepen / >0.75 lower" threshold rule, which on a
+        #     2-action game (random baseline 0.5) almost never fired and
+        #     could only oscillate between 1 and 3. Scoring every computed
+        #     chain order (not just the selected one) gives far more data
+        #     per round, so the bandit converges on short histories too. ---
+        self.atom_max_order = atom_max_order
+        self.atom_warmup = atom_warmup
+        self.atom_epsilon = atom_epsilon
+        self.atom_ema_alpha = atom_ema_alpha
+        # per-teammate per-order hit history: {tid: {order: [0/1, ...]}}
+        self._tom_order_hits = defaultdict(lambda: defaultdict(list))
+        # --- gated talk+ToM arbitration (Round-3): cheap-talk produces a
+        #     public intent (signal); ToM judges whether the signal is
+        #     trustworthy. Trust if signal agrees with ToM belief OR the
+        #     teammate's historical signal-action match EMA >= threshold;
+        #     otherwise fall back to the ToM belief. Resolves the
+        #     belief-signal interference that made naive ToM+talk fail
+        #     (het_tom_talk < het_tom). Motivated by Madmoun & Lahlou 2025
+        #     (cheap-talk helps) + El Mir, Takac & Lahlou 2026 / Yao et al.
+        #     2026 (cheap-talk signals can be unreliable and need repair). ---
+        self.gated_talk_tom = gated_talk_tom
+        self.gate_trust_threshold = gate_trust_threshold
+        self.gate_ema_alpha = gate_ema_alpha
+        # per-teammate EMA of (signal == actual), init 0.5 (uninformed)
+        self._signal_ema = defaultdict(lambda: 0.5)
+        self._signal_history = defaultdict(list)
 
     # ---- lazy model loading (so configs without GPU still parse) ----
     def _ensure_model(self):
@@ -458,8 +489,20 @@ class LLMAgent:
         intents) condition the choice. If use_tom, run recursive ToM reasoning
         up to tom_order levels (or, if adaptive_tom, up to the estimated
         partner ToM order), then condition the action on the prediction.
-        After acting, update ToM hit-rate history (for A-ToM)."""
+        If gated_talk_tom, arbitrate between the cheap-talk signal and the
+        ToM belief into a single gated belief (see _gate_signals) and feed
+        ONLY that belief to the action prompt -- this is the controlled
+        difference vs naive ToM+talk, which fed both and let them interfere.
+
+        Returns (action, tom_preds, tom_chains, gate_decisions):
+          tom_preds       : raw highest-order ToM prediction per teammate
+                            (stored for the tom_prediction_accuracy metric,
+                            comparable across cells)
+          tom_chains      : {tid: {order: preds}} for A-ToM per-order scoring
+          gate_decisions  : {tid: {...}} for the gated-arbitration metrics
+                            (empty for non-gated cells)"""
         teammate_preds = None
+        tom_chains = {}
         if self.use_tom:
             tom_orders_to_run = self._decide_tom_orders(teammate_ids)
             teammate_preds = {}
@@ -474,46 +517,176 @@ class LLMAgent:
                     preds = self._parse_tom_json(text, [tid],
                                                  game.base.n_actions)
                     local_chain[o] = preds
+                tom_chains[tid] = local_chain
                 # highest-order prediction for this teammate
                 teammate_preds.update(local_chain[order])
-        prompt = self._build_action_prompt(game, obs, teammate_preds, signals)
+        # --- belief-signal arbitration (gated talk+ToM) ---
+        gate_decisions = {}
+        if self.gated_talk_tom and signals:
+            belief, gate_decisions = self._gate_signals(
+                teammate_ids, teammate_preds, signals)
+            prompt_signals = None          # belief already carries the signal
+        else:
+            belief = teammate_preds
+            prompt_signals = signals       # existing naive behavior
+        prompt = self._build_action_prompt(game, obs, belief, prompt_signals)
         text = self._generate(prompt, max_new_tokens=8)
         action = self._parse_action(text, game.base.n_actions)
-        return action, teammate_preds
+        return action, teammate_preds, tom_chains, gate_decisions
 
     def _decide_tom_orders(self, teammate_ids):
-        """A-ToM: decide per-teammate ToM reasoning order. If adaptive_tom,
-        estimate partner's ToM order from hit history; else use fixed order."""
+        """A-ToM: decide per-teammate ToM reasoning order.
+
+        Improved design (Round-3), replacing the coarse
+        ``hit_rate < 0.4 -> deepen, > 0.75 -> lower`` rule. Problems with
+        the old rule: (i) on a 2-action game the random baseline is 0.5, so
+        ``< 0.4`` almost never triggered and ``> 0.75`` was rare -> the
+        adaptation barely fired; (ii) it only read the last 10 predictions,
+        so estimates were noisy on short histories; (iii) it could only
+        oscillate between the two ends (1 <-> 3) without modelling which
+        order is actually best.
+
+        New design: a contextual bandit over ToM orders {1..max_order}.
+        Per (teammate, order) we keep an EMA of the prediction hit-rate
+        (computed over ALL history, not just last 10, so it is stable even
+        with short interaction histories). Selection is epsilon-greedy with
+        a warmup that forces every order to be sampled at least
+        ``atom_warmup`` times before exploiting. This lets the agent
+        discover the order that best aligns with each teammate's reasoning
+        depth (Mu et al. 2026: misaligned ToM orders impair coordination).
+
+        If not adaptive_tom, use the fixed ``tom_order``."""
         if not self.adaptive_tom:
             return {tid: self.tom_order for tid in teammate_ids}
         out = {}
         for tid in teammate_ids:
-            hist = self._tom_history.get(tid, [])
-            est = self._est_tom_order[tid]
-            if len(hist) >= 5:
-                # recent hit rate (last 10)
-                recent = hist[-10:]
-                hit_rate = float(np.mean([1.0 if p == a else 0.0
-                                          for p, a in recent]))
-                # if predicting poorly at current order, try a different depth
-                if hit_rate < 0.4 and est < 3:
-                    est = min(est + 1, 3)
-                elif hit_rate > 0.75 and est > 1:
-                    est = max(est - 1, 1)
-                self._est_tom_order[tid] = est
-            out[tid] = est
+            hits = self._tom_order_hits.get(tid, {})
+            chosen = None
+            # warmup: force each order to be sampled >= atom_warmup times
+            for o in range(1, self.atom_max_order + 1):
+                if len(hits.get(o, [])) < self.atom_warmup:
+                    chosen = o
+                    break
+            if chosen is None:
+                if self._rng.random() < self.atom_epsilon:
+                    chosen = self._rng.randrange(1, self.atom_max_order + 1)
+                else:
+                    ema = {o: self._ema(hits.get(o, []), self.atom_ema_alpha)
+                           for o in range(1, self.atom_max_order + 1)}
+                    best = max(ema.values())
+                    cand = [o for o, v in ema.items()
+                            if abs(v - best) < 1e-9]
+                    chosen = cand[0] if len(cand) == 1 else self._rng.choice(cand)
+            self._est_tom_order[tid] = chosen
+            out[tid] = chosen
         return out
 
-    def update_tom_history(self, teammate_ids, preds, actual_actions):
-        """Record (predicted, actual) per teammate to calibrate A-ToM."""
-        if not preds:
+    @staticmethod
+    def _ema(values, alpha):
+        """Exponential moving average over a list of 0/1 hits. alpha is the
+        weight on the newest observation. Returns 0.0 for empty input."""
+        if not values:
+            return 0.0
+        v = float(values[0])
+        for x in values[1:]:
+            v = alpha * float(x) + (1.0 - alpha) * v
+        return v
+
+    def _gate_signals(self, teammate_ids, tom_preds, signals):
+        """Gated talk+ToM arbitration. For each teammate, decide whether to
+        trust their announced cheap-talk signal or fall back to the ToM
+        belief, then return a single gated prediction per teammate.
+
+        Trust policy (trust the signal if EITHER holds):
+          (a) consistency: the signal agrees with the ToM belief, OR
+          (b) reliability: the teammate's historical signal-action match
+              EMA >= gate_trust_threshold.
+        Otherwise distrust -> use the ToM belief. This directly attacks the
+        Round-2 failure where naive ToM+talk (het_tom_talk) dumped both the
+        signal and the belief into the prompt with no arbitration, letting
+        them interfere (het_tom_talk 0.890 < het_tom 1.259).
+
+        Returns (gated_preds, decisions) where decisions logs, per
+        teammate, the signal, tom_pred, gated_pred, trusted flag, and
+        trust_score for downstream metrics."""
+        gated = {}
+        decisions = {}
+        for tid in teammate_ids:
+            sig = signals.get(tid) if signals else None
+            pred = tom_preds.get(tid) if tom_preds else None
+            trust_score = self._signal_ema.get(tid, 0.5)
+            trusted = False
+            if sig is not None and pred is not None:
+                if sig == pred:
+                    trusted = True          # consistent -> trust signal
+                    chosen = sig
+                elif trust_score >= self.gate_trust_threshold:
+                    trusted = True          # historically reliable -> trust
+                    chosen = sig
+                else:
+                    trusted = False         # untrusted -> ToM belief
+                    chosen = pred
+            elif sig is not None:
+                trusted = True
+                chosen = sig
+            elif pred is not None:
+                trusted = False
+                chosen = pred
+            else:
+                trusted = False
+                chosen = self._rng.randrange(2) if self.use_tom else None
+            gated[tid] = chosen
+            decisions[tid] = {"signal": sig, "tom_pred": pred,
+                              "gated_pred": chosen, "trusted": trusted,
+                              "trust_score": float(trust_score)}
+        return gated, decisions
+
+    def update_signal_history(self, teammate_ids, signals, actual_actions):
+        """Update the per-teammate signal-action trust EMA used by the gate.
+        Called after actions are observed each round."""
+        if not signals:
             return
         for tid in teammate_ids:
-            if tid in preds:
-                idx = tid - 1 if isinstance(tid, int) else int(tid) - 1
-                if 0 <= idx < len(actual_actions):
-                    self._tom_history[tid].append(
-                        (preds[tid], actual_actions[idx]))
+            sig = signals.get(tid)
+            if sig is None:
+                continue
+            idx = tid - 1 if isinstance(tid, int) else int(tid) - 1
+            if 0 <= idx < len(actual_actions):
+                hit = 1.0 if sig == actual_actions[idx] else 0.0
+                prev = self._signal_ema.get(tid, 0.5)
+                self._signal_ema[tid] = (self.gate_ema_alpha * hit
+                                         + (1.0 - self.gate_ema_alpha) * prev)
+                self._signal_history[tid].append((sig, actual_actions[idx]))
+
+    def update_tom_history(self, teammate_ids, tom_chains, actual_actions):
+        """Record (predicted, actual) per teammate to calibrate A-ToM.
+
+        Scores EVERY order computed in the chain (1..chosen) against the
+        actual action, so each order's EMA hit-rate reflects its intrinsic
+        accuracy and the bandit converges much faster on short histories
+        (a Round-2 problem: 20 episodes gave too little per-order data under
+        the old rule, which only scored the single selected prediction).
+        Also keeps the legacy _tom_history (highest-order prediction) for
+        backward compatibility."""
+        if not tom_chains:
+            return
+        for tid in teammate_ids:
+            chain = tom_chains.get(tid)
+            if not chain:
+                continue
+            idx = tid - 1 if isinstance(tid, int) else int(tid) - 1
+            if not (0 <= idx < len(actual_actions)):
+                continue
+            actual = actual_actions[idx]
+            for o in sorted(chain.keys()):
+                preds = chain[o]
+                if tid in preds:
+                    hit = 1.0 if preds[tid] == actual else 0.0
+                    self._tom_order_hits[tid][o].append(hit)
+            top_order = max(chain.keys())
+            if tid in chain[top_order]:
+                self._tom_history[tid].append(
+                    (chain[top_order][tid], actual))
 
 
 # =============================================================================
@@ -566,6 +739,13 @@ def build_agents(config):
             seed=seed,
             use_talk=config.get("use_talk", False),
             adaptive_tom=config.get("adaptive_tom", False),
+            gated_talk_tom=config.get("gated_talk_tom", False),
+            atom_max_order=config.get("atom_max_order", 3),
+            atom_warmup=config.get("atom_warmup", 3),
+            atom_epsilon=config.get("atom_epsilon", 0.15),
+            atom_ema_alpha=config.get("atom_ema_alpha", 0.3),
+            gate_trust_threshold=config.get("gate_trust_threshold", 0.6),
+            gate_ema_alpha=config.get("gate_ema_alpha", 0.3),
         ))
     return game, agents
 
@@ -590,26 +770,31 @@ def run_episode(game, agents, horizon, memory):
                 intent = ag.announce(rg, obs, sig_in)
                 signals[ag.agent_id] = intent
         # --- action phase ---
-        actions, tom_preds = [], []
+        actions, tom_preds, tom_chains, gate_decisions = [], [], [], []
         for ag in agents:
             others = [t for t in teammate_ids if t != ag.agent_id]
             sig_for = {t: signals[t] for t in others} if use_talk else None
-            act, preds = ag.act(rg, obs, others, sig_for)
+            act, preds, chains, gates = ag.act(rg, obs, others, sig_for)
             actions.append(act)
             tom_preds.append(preds)
+            tom_chains.append(chains)
+            gate_decisions.append(gates)
         rewards = rg.step(actions)
-        # --- A-ToM: update ToM hit-rate history (Mu 2026) ---
-        for ag in agents:
+        # --- A-ToM: update per-order hit history (Mu 2026) ---
+        for ai, ag in enumerate(agents):
+            others = [t for t in teammate_ids if t != ag.agent_id]
             if getattr(ag, "use_tom", False):
-                ag.update_tom_history(
-                    [t for t in teammate_ids if t != ag.agent_id],
-                    tom_preds[agents.index(ag)], actions)
+                ag.update_tom_history(others, tom_chains[ai], actions)
+            # --- gated talk+ToM: update signal trust EMA ---
+            if getattr(ag, "gated_talk_tom", False) and use_talk:
+                ag.update_signal_history(others, signals, actions)
         trajectory.append({
             "round": state["round"],
             "actions": actions,
             "rewards": rewards,
             "tom_preds": tom_preds,
             "signals": dict(signals) if use_talk else None,
+            "gate_decisions": gate_decisions,
         })
         state["history"].append((actions, rewards))
         state["round"] += 1
@@ -691,6 +876,28 @@ def compute_metrics(episodes, game, n_boot=2000, seed=0):
         tom_accuracy = float("nan")
         tom_lo = tom_hi = float("nan")
 
+    # 5. Gated talk+ToM arbitration metrics (only if gate_decisions present)
+    gate_trust, gated_acc, signal_acc, tom_belief_acc = [], [], [], []
+    for ep in episodes:
+        for s in ep:
+            gates = s.get("gate_decisions")
+            if not gates:
+                continue
+            acts = s["actions"]
+            for ag_gates in gates:
+                for tid, d in ag_gates.items():
+                    idx = tid - 1 if isinstance(tid, int) else int(tid) - 1
+                    if not (0 <= idx < len(acts)):
+                        continue
+                    if d.get("trusted") is not None:
+                        gate_trust.append(1.0 if d["trusted"] else 0.0)
+                    if d.get("gated_pred") is not None:
+                        gated_acc.append(1.0 if d["gated_pred"] == acts[idx] else 0.0)
+                    if d.get("signal") is not None:
+                        signal_acc.append(1.0 if d["signal"] == acts[idx] else 0.0)
+                    if d.get("tom_pred") is not None:
+                        tom_belief_acc.append(1.0 if d["tom_pred"] == acts[idx] else 0.0)
+
     return {
         "perspective_diversity": perspective_div,
         "cooperation_payoff": coop_payoff,
@@ -701,6 +908,10 @@ def compute_metrics(episodes, game, n_boot=2000, seed=0):
         "n_episodes": len(episodes),
         "action_dist_agent1": dists[0].tolist() if dists else [],
         "per_episode_payoffs": per_ep_payoffs,
+        "gate_trust_rate": float(np.mean(gate_trust)) if gate_trust else float("nan"),
+        "gated_prediction_accuracy": float(np.mean(gated_acc)) if gated_acc else float("nan"),
+        "signal_accuracy": float(np.mean(signal_acc)) if signal_acc else float("nan"),
+        "tom_belief_accuracy_in_gated": float(np.mean(tom_belief_acc)) if tom_belief_acc else float("nan"),
     }
 
 
@@ -751,8 +962,19 @@ def make_matrix_configs(args):
             # --- adaptive ToM variants (Mu et al. 2026) ---
             ("hom_atom",  dict(homogeneous=True,  use_tom=True,  use_talk=False, adaptive_tom=True)),
             ("het_atom",  dict(homogeneous=False, use_tom=True,  use_talk=False, adaptive_tom=True)),
-            # --- combined: heterogeneity + cheap-talk + A-ToM (full method) ---
+            # --- combined: heterogeneity + cheap-talk + A-ToM (round-2 full method) ---
             ("het_atom_talk", dict(homogeneous=False, use_tom=True,  use_talk=True,  adaptive_tom=True)),
+            # --- Round-3: gated talk+ToM arbitration. Cheap-talk produces a
+            #     public intent; ToM judges whether the signal is trustworthy;
+            #     if trusted (consistent with ToM belief OR historically
+            #     reliable signaler) the agent follows the signal, else falls
+            #     back to the ToM belief. This resolves the belief-signal
+            #     interference that made naive ToM+talk fail. ---
+            ("het_gated_talk_tom",  dict(homogeneous=False, use_tom=True, use_talk=True,
+                                         adaptive_tom=False, gated_talk_tom=True)),
+            # --- Round-3 full method: gated arbitration + improved A-ToM ---
+            ("het_gated_atom_talk", dict(homogeneous=False, use_tom=True, use_talk=True,
+                                         adaptive_tom=True,  gated_talk_tom=True)),
         ]
     out = []
     for name, diff in cells:
@@ -760,6 +982,11 @@ def make_matrix_configs(args):
         cfg.update(diff)
         cfg["cell_name"] = name
         out.append(cfg)
+    # --- optional cell subset filter (for focused round-3 runs) ---
+    want = getattr(args, "cells", None)
+    if want:
+        want = set(want)
+        out = [c for c in out if c["cell_name"] in want]
     return out
 
 
@@ -850,9 +1077,14 @@ def main():
                     help="use random agents instead of LLMs (for fast "
                          "end-to-end pipeline testing without GPU/models)")
     ap.add_argument("--extend", action="store_true",
-                    help="run the extended round-2 matrix: base 4 cells + "
+                    help="run the extended round-2/3 matrix: base 4 cells + "
                          "cheap-talk variants (Madmoun 2025) + adaptive-ToM "
-                         "variants (Mu 2026) + combined het+atom+talk")
+                         "variants (Mu 2026) + combined het+atom+talk + "
+                         "round-3 gated talk+ToM arbitration cells")
+    ap.add_argument("--cells", type=str, nargs="+", default=None,
+                    help="subset of cell names to run (filters the matrix); "
+                         "useful for focused round-3 runs without re-running "
+                         "all 13 cells")
     args = ap.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)

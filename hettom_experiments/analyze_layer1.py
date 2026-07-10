@@ -36,9 +36,12 @@ import numpy as np
 
 CELLS = ["hom_notom", "hom_tom", "het_notom", "het_tom",
          "hom_notom_talk", "hom_tom_talk", "het_notom_talk", "het_tom_talk",
-         "hom_atom", "het_atom", "het_atom_talk"]
+         "hom_atom", "het_atom", "het_atom_talk",
+         "het_gated_talk_tom", "het_gated_atom_talk"]
 METRICS = ["perspective_diversity", "cooperation_payoff",
-           "equilibrium_convergence", "tom_prediction_accuracy"]
+           "equilibrium_convergence", "tom_prediction_accuracy",
+           "gate_trust_rate", "gated_prediction_accuracy",
+           "signal_accuracy", "tom_belief_accuracy_in_gated"]
 
 
 def load_metrics(results_dir):
@@ -196,6 +199,14 @@ def analyze(results_dir, out_dir):
         # round-2: combined full method
         ("het_atom_talk", "hom_notom", "het+A-ToM+talk vs baseline (trap broken?)"),
         ("het_atom_talk", "het_tom",   "Combined method vs het+ToM?"),
+        # round-3: gated talk+ToM arbitration (belief-signal arbitration)
+        ("het_gated_talk_tom", "hom_notom", "Gated talk+ToM vs baseline (trap broken?)"),
+        ("het_gated_talk_tom", "het_tom", "Gated arbitration beats fixed het+ToM?"),
+        ("het_gated_talk_tom", "het_tom_talk", "Gated arbitration beats naive ToM+talk?"),
+        ("het_gated_talk_tom", "het_notom_talk", "Gated ToM adds over talk-only?"),
+        ("het_gated_atom_talk", "hom_notom", "Gated+A-ToM+talk vs baseline (trap broken?)"),
+        ("het_gated_atom_talk", "het_gated_talk_tom", "A-ToM adds over fixed ToM under gating?"),
+        ("het_gated_atom_talk", "het_atom_talk", "Gating adds over naive A-ToM+talk?"),
     ]
     payoff_agg = aggregate(by_cell, "cooperation_payoff")
     div_agg = aggregate(by_cell, "perspective_diversity")
@@ -287,8 +298,28 @@ def analyze(results_dir, out_dir):
     elif pa2:
         reasons.append(f"[round-2 het_atom_talk] insufficient seeds (n={len(pa2)})")
 
+    # round-3 decision: gated methods vs hom_notom (the round-3 hypothesis:
+    # gated signal-belief arbitration finally breaks the trap)
+    for gated_cell in ("het_gated_talk_tom", "het_gated_atom_talk"):
+        pa3 = payoff_agg.get(gated_cell, (float("nan"),) * 6)[5] if gated_cell in payoff_agg else []
+        da3 = div_agg.get(gated_cell, (float("nan"),) * 6)[5] if gated_cell in div_agg else []
+        if pa3 and pb and len(pa3) >= 3:
+            _, p_pay3 = mann_whitney_u(pa3, pb)
+            delta_div3 = (np.mean(da3) - np.mean(db)) if da3 and db else float("nan")
+            delta_pay3 = np.mean(pa3) - np.mean(pb)
+            cond_div3 = delta_div3 > 0
+            cond_pay3 = (delta_pay3 > 0) and (p_pay3 < 0.05)
+            trap_broken3 = cond_div3 and cond_pay3
+            reasons.append(f"[round-3 {gated_cell}] diversity delta={fmt(delta_div3)} (>0? {cond_div3})")
+            reasons.append(f"[round-3 {gated_cell}] payoff delta={fmt(delta_pay3)} p={fmt(p_pay3)} "
+                           f"(<0.05 & >0? {cond_pay3})")
+            if trap_broken3:
+                trap_broken = True
+        elif pa3:
+            reasons.append(f"[round-3 {gated_cell}] insufficient seeds (n={len(pa3)})")
+
     if trap_broken:
-        lines.append("POSITIVE: Reasoning Trap broken by heterogeneity + ToM (+talk/atom).")
+        lines.append("POSITIVE: Reasoning Trap broken by heterogeneity + ToM (+talk/atom/gating).")
         lines.append("  -> Write as positive method paper (AAAI 40-50%).")
     else:
         lines.append("NEGATIVE/PARTIAL: Trap NOT fully broken.")
