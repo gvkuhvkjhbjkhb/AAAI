@@ -194,12 +194,87 @@ def make_chicken():
     )
 
 
+def make_hawk_dove():
+    """2-player Hawk-Dove (biological resource-contest variant).
+
+    Distinct from Chicken: different payoff magnitudes and a NEGATIVE
+    mutual-aggression payoff, modeling injury cost. This provides a second
+    anti-coordination game with different tension parameters to test whether
+    DP-gating's advantage generalizes beyond a single payoff matrix.
+
+    Actions: 0=Dove (display), 1=Hawk (escalate).
+    Payoff matrix (row=agent1):
+                 Dove        Hawk
+      Dove     (2,2)       (0,3)
+      Hawk     (3,0)       (-1,-1)
+
+    Two pure Nash equilibria: (Hawk,Dove) and (Dove,Hawk).
+    Compared to Chicken:
+      - Lower mutual-Dove payoff (2 vs 3) -> weaker incentive to cooperate
+      - Negative mutual-Hawk payoff (-1 vs 0) -> stronger deterrence
+      - Hawk exploits Dove more (3 vs 5 ratio different) -> different
+        exploitation pressure
+    """
+    payoff_matrix = {
+        (0, 0): (2, 2),
+        (0, 1): (0, 3),
+        (1, 0): (3, 0),
+        (1, 1): (-1, -1),
+    }
+    def payoff(actions):
+        return payoff_matrix[(actions[0], actions[1])]
+    return MatrixGame(
+        name="hawk_dove",
+        n_agents=2,
+        n_actions=2,
+        action_names=["Dove", "Hawk"],
+        payoff=payoff,
+    )
+
+
+def make_deadlock():
+    """2-player Deadlock (anti-coordination with betrayal temptation).
+
+    A third anti-coordination game where mutual defection is moderately bad
+    (not catastrophic), testing DP-gating under a regime where the cost of
+    miscoordination is asymmetric to Chicken/Hawk-Dove.
+
+    Actions: 0=Cooperate, 1=Defect.
+    Payoff matrix:
+                 Coop        Defect
+      Coop     (2,2)       (0,4)
+      Defect   (4,0)       (1,1)
+
+    Two pure Nash equilibria: (Defect,Coop) and (Coop,Defect).
+    Unlike Chicken, mutual Defect (1,1) is BETTER than being exploited (0,4).
+    This reverses the risk structure: in Chicken you fear mutual Hawk (0,0);
+    here you fear being the sucker (0) while mutual Defect (1,1) is tolerable.
+    """
+    payoff_matrix = {
+        (0, 0): (2, 2),
+        (0, 1): (0, 4),
+        (1, 0): (4, 0),
+        (1, 1): (1, 1),
+    }
+    def payoff(actions):
+        return payoff_matrix[(actions[0], actions[1])]
+    return MatrixGame(
+        name="deadlock",
+        n_agents=2,
+        n_actions=2,
+        action_names=["Cooperate", "Defect"],
+        payoff=payoff,
+    )
+
+
 GAMES = {
     "stag_hunt": make_stag_hunt,
     "public_goods": lambda: make_public_goods(n_agents=4),
     "coordination": lambda: make_coordination(n_agents=2, n_actions=3),
     "battle_of_the_sexes": make_battle_of_the_sexes,
     "chicken": make_chicken,
+    "hawk_dove": make_hawk_dove,
+    "deadlock": make_deadlock,
 }
 
 
