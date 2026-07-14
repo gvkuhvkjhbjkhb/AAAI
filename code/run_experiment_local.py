@@ -121,7 +121,11 @@ def make_config(game_name, cell_name, seed, n_agents=None,
         base.update(homogeneous=False, use_tom=True, use_talk=True,
                     adaptive_tom=True, gated_talk_tom=True, diversity_preserving_gate=True,
                     role_asymmetric_hint=True, history_split_hint=True,
-                    adaptive_intervention=True, adaptive_interv_threshold=0.3)
+                     adaptive_intervention=True, adaptive_interv_threshold=0.3)
+    # ---- 3-arm GSACA with abstention (split>τ→CGA, split<-τ→Gated, |split|≤τ→NoToM) ----
+    elif cell_name == "het_3arm":
+        base.update(homogeneous=False, use_tom=True, use_talk=True,
+                    adaptive_tom=True, gated_talk_tom=True, diversity_preserving_gate=True)
     # ---- payoff-in-prompt baseline (no alignment, LLM sees full matrix) ----
     elif cell_name == "het_payoff_prompt":
         base.update(homogeneous=False, use_tom=False, use_talk=False,
@@ -141,6 +145,79 @@ def make_config(game_name, cell_name, seed, n_agents=None,
     else:
         raise ValueError(f"Unknown cell: {cell_name}")
     return base
+
+
+def run_3arm_cell(cfg, n_episodes, out_dir, log_every=5, warmup=5, noise_std=0.0, abstain_tau=0.4):
+    """3-arm GSACA: split>τ→CGA, split<-τ→Gated, |split|≤τ→NoToM (abstain)."""
+    cell = cfg["cell_name"]
+    t0 = time.time()
+    game, agents = hb.build_agents(cfg)
+    wrap_payoff_noise(game, noise_std)
+    horizon, memory = cfg["horizon"], cfg["memory"]
+    estimator = GameStructureEstimator()
+    episodes = []
+
+    for ep_idx in range(warmup):
+        ep = hb.run_episode(game, agents, horizon, memory)
+        episodes.append(ep)
+        for step in ep:
+            estimator.observe(step["actions"], step["rewards"])
+
+    structure, split_score, n_obs = estimator.estimate()
+    oracle = ORACLE_STRUCTURE.get(cfg["game"], "unknown")
+
+    if split_score > abstain_tau:
+        arm = "CGA"
+    elif split_score < -abstain_tau:
+        arm = "Gated"
+        for ag in agents:
+            ag.gated_talk_tom = False
+            ag.diversity_preserving_gate = False
+    else:
+        arm = "NoToM"
+        for ag in agents:
+            ag.gated_talk_tom = False
+            ag.diversity_preserving_gate = False
+            ag.use_tom = False
+            ag.use_talk = False
+
+    detection_correct = (structure == oracle)
+    print(f"  [{cell}] split={split_score:.3f} τ={abstain_tau} → arm={arm} (oracle={oracle})", flush=True)
+
+    for ep_idx in range(warmup, n_episodes):
+        ep = hb.run_episode(game, agents, horizon, memory)
+        episodes.append(ep)
+        if (ep_idx + 1) % log_every == 0:
+            print(f"  [{cell}] ep {ep_idx+1}/{n_episodes} ({time.time()-t0:.0f}s)", flush=True)
+
+    metrics = hb.compute_metrics(episodes, game, n_boot=2000, seed=cfg.get("seed", 0))
+    metrics["cell"] = cell
+    metrics["gsaca_detected_structure"] = structure
+    metrics["gsaca_oracle_structure"] = oracle
+    metrics["gsaca_detection_correct"] = detection_correct
+    metrics["gsaca_split_score"] = split_score
+    metrics["gsaca_warmup_episodes"] = warmup
+    metrics["gsaca_n_observations"] = n_obs
+    metrics["gsaca_3arm_selected"] = arm
+    metrics["gsaca_3arm_tau"] = abstain_tau
+    metrics["wall_time_s"] = time.time() - t0
+    metrics["config"] = {k: v for k, v in cfg.items() if k not in ("models_het", "temps_het", "roles")}
+    team_payoffs = [float(np.mean([np.mean(s["rewards"]) for s in ep])) for ep in episodes]
+    metrics["team_mean_payoff"] = float(np.mean(team_payoffs))
+
+    cell_dir = os.path.join(out_dir, cell)
+    os.makedirs(cell_dir, exist_ok=True)
+    with open(os.path.join(cell_dir, "metrics.json"), "w") as f:
+        json.dump(metrics, f, indent=2)
+    with open(os.path.join(cell_dir, "trajectories.jsonl"), "w") as ftraj:
+        for ep_idx, ep in enumerate(episodes):
+            ftraj.write(json.dumps({"episode": ep_idx, "steps": ep}) + "\n")
+
+    print(f"  [{cell}] arm={arm} split={split_score:.3f} payoff={metrics['cooperation_payoff']:.4f} "
+          f"team={metrics['team_mean_payoff']:.4f} div={metrics['perspective_diversity']:.4f} "
+          f"({time.time()-t0:.0f}s)", flush=True)
+    del agents; gc.collect()
+    return metrics
 
 
 def run_gsaca_cell(cfg, n_episodes, out_dir, log_every=5, warmup=5, noise_std=0.0):
@@ -252,7 +329,11 @@ def run_game_seed(args, game, seed):
                           horizon=args.horizon, memory=args.memory, args=args)
         print(f"  [run]  {cell} @ {args.episodes}ep ...", flush=True)
         try:
-            if cell.endswith("gsaca"):
+            if cell == "het_3arm":
+                run_3arm_cell(cfg, args.episodes, seed_dir,
+                              log_every=args.log_every, warmup=args.gsaca_warmup,
+                              noise_std=args.payoff_noise_std, abstain_tau=args.abstain_tau)
+            elif cell.endswith("gsaca"):
                 run_gsaca_cell(cfg, args.episodes, seed_dir,
                                log_every=args.log_every, warmup=args.gsaca_warmup,
                                noise_std=args.payoff_noise_std)
@@ -286,6 +367,7 @@ def main():
     ap.add_argument("--history_split_hint", action="store_true")
     ap.add_argument("--adaptive_intervention", action="store_true")
     ap.add_argument("--adaptive_interv_threshold", type=float, default=0.3)
+    ap.add_argument("--abstain_tau", type=float, default=0.4)
     ap.add_argument("--models_het", type=str, nargs=2, default=MODELS_HET)
     ap.add_argument("--model_homo", type=str, default=MODEL_HOMO)
     ap.add_argument("--force", action="store_true")
