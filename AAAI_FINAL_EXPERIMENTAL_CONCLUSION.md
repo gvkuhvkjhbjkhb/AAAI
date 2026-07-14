@@ -25,4 +25,3 @@ The full hardening sequence is complete. The experiments improve the credibility
 ## Recommendation
 
 Do not submit the current manuscript as a positive AAAI method paper. A credible AAAI path now requires either: (1) redesigning the adaptive intervention and rerunning a preregistered 16-seed evaluation with the current controls, or (2) reframing the paper as a careful negative/mixed empirical study showing why adaptive reward shaping can appear promising under small seed counts but fail under stronger controls and larger seed sets.
-

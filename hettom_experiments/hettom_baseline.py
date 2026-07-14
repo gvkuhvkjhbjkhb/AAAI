@@ -267,6 +267,39 @@ def make_deadlock():
     )
 
 
+def make_matching_pennies():
+    """2-player Matching Pennies (pure anti-coordination, zero-sum).
+
+    Row player wins when actions MATCH; column player wins when they MISMATCH.
+    Payoff matrix (row=agent1):
+                 Heads       Tails
+      Heads    (1,-1)      (-1,1)
+      Tails    (-1,1)       (1,-1)
+
+    NO pure-strategy Nash equilibrium; only the mixed equilibrium (0.5, 0.5).
+    Crucially, the TEAM payoff is identically 0 for every action profile, so
+    the split-score statistic (mean split payoff - mean symmetric payoff)
+    collapses to 0 and cannot discriminate structure. This is the canonical
+    stress test for the GSACA structure estimator: a genuinely anti-coordination
+    game whose constant team payoff defeats a team-payoff-based detector.
+    """
+    payoff_matrix = {
+        (0, 0): (1, -1),
+        (0, 1): (-1, 1),
+        (1, 0): (-1, 1),
+        (1, 1): (1, -1),
+    }
+    def payoff(actions):
+        return payoff_matrix[(actions[0], actions[1])]
+    return MatrixGame(
+        name="matching_pennies",
+        n_agents=2,
+        n_actions=2,
+        action_names=["Heads", "Tails"],
+        payoff=payoff,
+    )
+
+
 GAMES = {
     "stag_hunt": make_stag_hunt,
     "public_goods": lambda: make_public_goods(n_agents=4),
@@ -275,6 +308,7 @@ GAMES = {
     "chicken": make_chicken,
     "hawk_dove": make_hawk_dove,
     "deadlock": make_deadlock,
+    "matching_pennies": make_matching_pennies,
 }
 
 
@@ -334,6 +368,7 @@ class LLMAgent:
                  atom_max_order=3, atom_warmup=3, atom_epsilon=0.15,
                  atom_ema_alpha=0.3, gate_trust_threshold=0.6,
                  gate_ema_alpha=0.3, diversity_preserving_gate=False,
+                 payoff_in_prompt=False,
                  api_base=None, api_key=None):
         self.agent_id = agent_id
         self.model_name = model_name
@@ -399,6 +434,7 @@ class LLMAgent:
         #     compressed diversity to ~0 (0.013) while still not beating
         #     the homogeneous baseline (1.734 vs 2.325). ---
         self.diversity_preserving_gate = diversity_preserving_gate
+        self.payoff_in_prompt = payoff_in_prompt
         # per-teammate EMA of (signal == actual), init 0.5 (uninformed)
         self._signal_ema = defaultdict(lambda: 0.5)
         self._signal_history = defaultdict(list)
@@ -449,6 +485,23 @@ class LLMAgent:
             f"Actions: " + ", ".join(
                 f"{i}={n}" for i, n in enumerate(game.base.action_names)) + "."
         )
+        if self.payoff_in_prompt and game.base.n_agents == 2:
+            na = game.base.n_actions
+            names = game.base.action_names
+            rows = []
+            for a0 in range(na):
+                cells = []
+                for a1 in range(na):
+                    r = game.base.payoff_vector((a0, a1))
+                    cells.append(f"({r[0]:.1f},{r[1]:.1f})")
+                rows.append(f"  {names[a0]:>10}: " + "  ".join(cells))
+            payoff_line = (
+                "Full payoff matrix (row = your action, column = teammate action; "
+                "each cell = (your payoff, teammate payoff)):\n"
+                + f"  {'':>10}: " + "  ".join(f"{names[a1]:>10}" for a1 in range(na)) + "\n"
+                + "\n".join(rows)
+            )
+            game_line = game_line + "\n" + payoff_line
         obs_line = f"Observation:\n{obs}"
         instr = (
             f"Choose your action by replying with a single integer in "
@@ -923,6 +976,7 @@ def build_agents(config):
             gate_ema_alpha=config.get("gate_ema_alpha", 0.3),
             diversity_preserving_gate=config.get(
                 "diversity_preserving_gate", False),
+            payoff_in_prompt=config.get("payoff_in_prompt", False),
             api_base=config.get("api_base"),
             api_key=config.get("api_key"),
         ))
