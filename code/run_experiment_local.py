@@ -27,6 +27,30 @@ import hettom_baseline as hb
 MODELS_HET = ["Qwen/Qwen2.5-7B-Instruct", "THUDM/GLM-4-9B-0414"]
 MODEL_HOMO = "Qwen/Qwen2.5-7B-Instruct"
 
+# vLLM endpoints (used when --use_vllm is set)
+VLLM_QWEN = "http://localhost:8000/v1"
+VLLM_GLM = "http://localhost:8001/v1"
+VLLM_API_KEY = "dummy"
+VLLM_API_BASE_MAP = {
+    "Qwen/Qwen2.5-7B-Instruct": VLLM_QWEN,
+    "THUDM/GLM-4-9B-0414": VLLM_GLM,
+}
+
+_original_build_agents = hb.build_agents
+
+def _patched_build_agents_vllm(config):
+    game, agents = _original_build_agents(config)
+    api_base_map = config.get("api_base_map")
+    if api_base_map:
+        for ag in agents:
+            endpoint = api_base_map.get(ag.model_name)
+            if endpoint:
+                ag.api_base = endpoint
+                ag.api_key = config.get("api_key", "dummy")
+                ag._api_client = None
+                ag._model = None
+    return game, agents
+
 ALL_GAMES = ["chicken", "hawk_dove", "deadlock",
              "stag_hunt", "battle_of_the_sexes", "public_goods",
              "matching_pennies"]
@@ -63,12 +87,12 @@ def wrap_payoff_noise(game, noise_std):
     for the GSACA structure estimator). noise_std=0 leaves the game unchanged."""
     if not noise_std or noise_std <= 0:
         return game
-    base_payoff = game.base.payoff
+    base_payoff = game.payoff
     rng = np.random.RandomState(12345)
     def noisy_payoff(actions):
         raw = list(base_payoff(actions))
         return [r + rng.normal(0, noise_std) for r in raw]
-    game.base.payoff = noisy_payoff
+    game.payoff = noisy_payoff
     return game
 
 
@@ -85,13 +109,19 @@ def make_config(game_name, cell_name, seed, n_agents=None,
         "temp_homo": 0.7, "temps_het": [0.5, 0.8],
         "roles": [f"player{i+1}" for i in range(n_agents)],
         "tom_order": 1, "seed": seed,
-        # NO api_base → triggers local HF model loading
+        # vLLM: when use_vllm is set, inject api_base for API-mode inference
         "cell_name": cell_name,
         # hyperparameters (defaults preserve original behavior)
         "gate_trust_threshold": getattr(args, "gate_trust_threshold", 0.6) if args else 0.6,
         "gate_ema_alpha": getattr(args, "gate_ema_alpha", 0.3) if args else 0.3,
         "atom_warmup": getattr(args, "atom_warmup", 3) if args else 3,
     }
+    # inject vLLM API routing if requested
+    use_vllm = getattr(args, "use_vllm", False) if args else False
+    if use_vllm:
+        base["api_base"] = VLLM_QWEN
+        base["api_base_map"] = VLLM_API_BASE_MAP
+        base["api_key"] = VLLM_API_KEY
     # ---- heterogeneous cells (original) ----
     if cell_name == "het_notom":
         base.update(homogeneous=False, use_tom=False, use_talk=False, adaptive_tom=False)
@@ -371,7 +401,14 @@ def main():
     ap.add_argument("--models_het", type=str, nargs=2, default=MODELS_HET)
     ap.add_argument("--model_homo", type=str, default=MODEL_HOMO)
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--use_vllm", action="store_true",
+                    help="Use vLLM API servers instead of local transformers")
     args = ap.parse_args()
+
+    # apply vLLM monkey-patch if requested
+    if args.use_vllm:
+        hb.build_agents = _patched_build_agents_vllm
+        print("[vLLM] API mode enabled: Qwen→localhost:8000, GLM→localhost:8001", flush=True)
 
     os.makedirs(args.out_dir, exist_ok=True)
     total_t0 = time.time()
