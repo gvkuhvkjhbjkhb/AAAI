@@ -1,0 +1,33 @@
+=== CONFIG SNAPSHOT (frozen) ===
+generated_utc=2026-07-17T08:49:44Z
+git_commit=c3800f0dd2d4bf93299ec28dcd13a8dae4364412
+git_status:
+ M code/hettom_baseline.py
+ M code/launch_gpu.sh
+ M code/launch_local_gpu.sh
+ M code/queue_remaining.sh
+ M code/run_exp_a.sh
+ M code/run_experiment_local.py
+ M code/run_samebatch_maintable.sh
+ M code/scheme2_analyze_watcher.sh
+ M code/scheme2_waiter.sh
+?? code/analyze_paradox_attainment.py
+--- code edits (uncommitted, uploaded from agent) ---
+ code/run_experiment_local.py    | 32 +++++++++++++++++++++++++++++++-
+ code/run_samebatch_maintable.sh |  0
+ code/scheme2_analyze_watcher.sh |  0
+ code/scheme2_waiter.sh          |  0
+ 9 files changed, 45 insertions(+), 2 deletions(-)
+python=Python 3.10.12
+vllm=0.11.0
+torch=2.8.0+cu128
+transformers=5.14.1
+cuda_nvcc=Cuda compilation tools, release 12.8, V12.8.93
+driver_gpu:
+0, NVIDIA GeForce RTX 5090, 580.105.08, 32607 MiB
+1, NVIDIA GeForce RTX 5090, 580.105.08, 32607 MiB
+--- launch commands ---
+vllm: bash code/start_vllm.sh  (GPU0 Qwen2.5-7B :8000 bf16 util0.85; GPU1 GLM-4-9B :8001 bf16 util0.85)
+exp:  bash code/run_paradox_attainment.sh
+arms: het_notom het_gated_atom_talk het_dp_gated_atom_talk (NoToM/Gated/CGA)
+seeds: 42..61 (n=20); 2player ep30 horizon5 mem2; public_goods ep20; tom_order1 theta0.6 EMA0.3 atom_warmup3; top_p0.9 tempQwen0.5 GLM0.8

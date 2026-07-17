@@ -1,0 +1,48 @@
+============================================================================================================
+INDEPENDENT SAME-BATCH 3-ARM PARADOX / ATTAINMENT STUDY
+root=v2_results/exp_vllm_paradox_attainment_v1   metrics.json found=360   generated=2026-07-17T13:42:58.823844
+metric=cooperation_payoff   arms: NoToM / Gated / CGA
+============================================================================================================
+
+------------------------------------------------------------------------------------------------------------
+PARADOX  (CGA - Gated)
+------------------------------------------------------------------------------------------------------------
+  game                 grp           CGA   Gated    delta             95% CI        p  sig   p_holm  sigH      dz   win   n  expect
+  chicken              anti        2.440   2.176   +0.264    [+0.204,+0.323]   0.0000  ***   0.0000   ***   +1.90   95%  20  >0
+  deadlock             anti        1.560   2.154   -0.594    [-0.635,-0.551]   0.0001  ***   0.0003   ***   -6.01    0%  20  <=0(indep-baseline test)
+  hawk_dove            anti        1.116   1.996   -0.880    [-0.939,-0.824]   0.0001  ***   0.0003   ***   -6.51    0%  20  <=0(indep-baseline test)
+  stag_hunt            coord       2.921   2.999   -0.078    [-0.094,-0.062]   0.0001  ***   0.0003   ***   -2.07    0%  20  <0
+  battle_of_the_sexes  coord       1.281   2.848   -1.567    [-1.638,-1.495]   0.0000  ***   0.0000   ***   -9.33    0%  20  <0
+  public_goods         boundary    2.554   2.644   -0.090    [-0.101,-0.079]   0.0000  ***   0.0000   ***   -3.40    0%  20  exploratory
+
+------------------------------------------------------------------------------------------------------------
+BASELINE ATTAINMENT  (Gated - NoToM)
+------------------------------------------------------------------------------------------------------------
+  game                 grp         Gated   NoToM    delta             95% CI        p  sig      dz   win   n  expect
+  chicken              anti        2.176   2.389   -0.213    [-0.309,-0.123]   0.0003  ***   -0.99   25%  20
+  deadlock             anti        2.154   1.463   +0.691    [+0.643,+0.737]   0.0000  ***   +6.25  100%  20
+  hawk_dove            anti        1.996   1.137   +0.859    [+0.776,+0.943]   0.0000  ***   +4.41  100%  20
+  stag_hunt            coord       2.999   2.917   +0.082    [+0.065,+0.098]   0.0001  ***   +2.15  100%  20
+  battle_of_the_sexes  coord       2.848   1.288   +1.560    [+1.489,+1.628]   0.0000  ***   +9.56  100%  20
+  public_goods         boundary    2.644   2.528   +0.116    [+0.105,+0.129]   0.0001  ***   +4.23  100%  20
+
+------------------------------------------------------------------------------------------------------------
+MILD-INTERVENTION COST  (CGA - NoToM)
+------------------------------------------------------------------------------------------------------------
+  game                 grp           CGA   NoToM    delta             95% CI        p  sig      dz   win   n  expect
+  chicken              anti        2.440   2.389   +0.051    [-0.063,+0.160]   0.3300   ns   +0.19   70%  20
+  deadlock             anti        1.560   1.463   +0.097    [+0.030,+0.163]   0.0192    *   +0.62   70%  20
+  hawk_dove            anti        1.116   1.137   -0.021    [-0.108,+0.070]   0.7012   ns   -0.10   40%  20
+  stag_hunt            coord       2.921   2.917   +0.003    [-0.018,+0.026]   0.9039   ns   +0.06   40%  20
+  battle_of_the_sexes  coord       1.281   1.288   -0.008    [-0.088,+0.079]   0.5460   ns   -0.04   35%  20
+  public_goods         boundary    2.554   2.528   +0.026    [+0.013,+0.040]   0.0014   **   +0.84   75%  20
+
+============================================================================================================
+PARADOX headline (CGA-Gated): 1/6 games CGA>Gated (1 Holm-sig), 5/6 CGA<Gated (5 Holm-sig).
+ATTAINMENT headline (Gated-NoToM): Gated>=NoToM in 5/6 games (tests whether alignment gain is baseline-attainment-driven).
+Emphasis: effect DIRECTION + CI over single-test significance (pre-registered).
+============================================================================================================
+
+[wrote] v2_results/exp_vllm_paradox_attainment_v1/paradox_attainment_summary.csv
+[wrote] v2_results/exp_vllm_paradox_attainment_v1/paradox_attainment_summary.json
+[wrote] v2_results/exp_vllm_paradox_attainment_v1/paradox_attainment_table.tex

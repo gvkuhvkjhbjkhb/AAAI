@@ -373,7 +373,7 @@ class LLMAgent:
                  history_split_hint=False,
                  adaptive_intervention=False,
                  adaptive_interv_threshold=0.0,
-                 api_base=None, api_key=None):
+                 api_base=None, api_key=None, gen_seed_base=1000):
         self.agent_id = agent_id
         self.model_name = model_name
         self.temperature = max(temperature, 0.01)  # avoid div-by-zero
@@ -382,6 +382,14 @@ class LLMAgent:
         self.tom_order = tom_order
         self.seed = seed
         self._rng = random.Random(seed * 1000 + agent_id)
+        # --- reproducible vLLM generation seed ---
+        # vLLM honors a per-request `seed`; the original code only saved the
+        # experiment seed and never passed a generation seed, so sampling was
+        # non-reproducible across reruns. We derive a deterministic base per
+        # (experiment_seed, agent) and increment per call so every request is
+        # both distinct and exactly reproducible on rerun.
+        self._gen_seed_root = int(gen_seed_base) + int(seed) * 100 + int(agent_id)
+        self._gen_call_idx = 0
         self._model = None
         self._tokenizer = None
         self._device = device
@@ -563,6 +571,9 @@ class LLMAgent:
         errors. Strips markdown code fences from the response for cleaner
         JSON parsing."""
         import time as _time
+        # deterministic per-request generation seed (reproducible on rerun)
+        gen_seed = self._gen_seed_root + self._gen_call_idx
+        self._gen_call_idx += 1
         for attempt in range(retries):
             try:
                 resp = self._api_client.chat.completions.create(
@@ -571,6 +582,7 @@ class LLMAgent:
                     max_tokens=max_new_tokens,
                     temperature=self.temperature,
                     top_p=0.9,
+                    seed=gen_seed,
                 )
                 text = resp.choices[0].message.content.strip()
                 # strip markdown code fences that some models add
@@ -1009,6 +1021,7 @@ def build_agents(config):
             adaptive_interv_threshold=config.get("adaptive_interv_threshold", 0.0),
             api_base=config.get("api_base"),
             api_key=config.get("api_key"),
+            gen_seed_base=config.get("gen_seed_base", 1000),
         ))
     return game, agents
 

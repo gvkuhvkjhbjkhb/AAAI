@@ -123,6 +123,8 @@ def make_config(game_name, cell_name, seed, n_agents=None,
         "gate_trust_threshold": getattr(args, "gate_trust_threshold", 0.6) if args else 0.6,
         "gate_ema_alpha": getattr(args, "gate_ema_alpha", 0.3) if args else 0.3,
         "atom_warmup": getattr(args, "atom_warmup", 3) if args else 3,
+        # reproducible generation seed base passed through to vLLM requests
+        "gen_seed_base": getattr(args, "gen_seed_base", 1000) if args else 1000,
     }
     # inject vLLM API routing if requested
     use_vllm = getattr(args, "use_vllm", False) if args else False
@@ -352,13 +354,35 @@ def run_standard_cell(cfg, n_episodes, out_dir, log_every=5, noise_std=0.0):
     return metrics
 
 
+def latin_square_order(cells, seed):
+    """Balance arm order within each (game, seed) using a fixed Latin square
+    keyed on the seed. For the canonical n=3 arm set the rotation matches the
+    pre-registered schedule:
+      seeds 42,45,48,... -> cells as given (NoToM, Gated, CGA)
+      seeds 43,46,49,... -> rotate by 1 (Gated, CGA, NoToM)
+      seeds 44,47,50,... -> rotate by 2 (CGA, NoToM, Gated)
+    Generalizes to any k arms via rotation by (seed % k)."""
+    k = len(cells)
+    shift = seed % k
+    return [cells[(i + shift) % k] for i in range(k)]
+
+
 def run_game_seed(args, game, seed):
     n_agents = 4 if game == "public_goods" else None
     seed_dir = os.path.join(args.out_dir, game, f"seed_{seed}")
     os.makedirs(seed_dir, exist_ok=True)
     random.seed(seed); np.random.seed(seed)
     total_t0 = time.time()
-    for cell in args.cells:
+    if getattr(args, "latin_square", False):
+        run_cells = latin_square_order(args.cells, seed)
+    else:
+        run_cells = list(args.cells)
+    # record the arm order actually used for this (game, seed) in a manifest
+    with open(os.path.join(seed_dir, "arm_order.json"), "w") as _f:
+        json.dump({"game": game, "seed": seed, "arm_order": run_cells,
+                   "latin_square": bool(getattr(args, "latin_square", False)),
+                   "timestamp": datetime.now().isoformat()}, _f, indent=2)
+    for cell in run_cells:
         mpath = os.path.join(seed_dir, cell, "metrics.json")
         if (not args.force) and os.path.exists(mpath):
             print(f"  [skip] {cell} (exists)", flush=True)
@@ -411,6 +435,12 @@ def main():
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--use_vllm", action="store_true",
                     help="Use vLLM API servers instead of local transformers")
+    ap.add_argument("--latin_square", action="store_true",
+                    help="Balance arm run-order within each (game,seed) via a "
+                         "seed-keyed Latin square (removes server-warmup order bias)")
+    ap.add_argument("--gen_seed_base", type=int, default=1000,
+                    help="Base for the reproducible per-request vLLM generation "
+                         "seed; final seed = gen_seed_base + experiment_seed*100 + agent_id")
     args = ap.parse_args()
 
     # apply vLLM monkey-patch if requested
