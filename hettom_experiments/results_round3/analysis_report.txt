@@ -1,0 +1,80 @@
+==============================================================================
+HetToM Layer-1 Analysis Report (Round-3)
+==============================================================================
+Results dir: results/hettom_layer1/stag_hunt_round3
+Seeds found: 5
+
+--- perspective_diversity (mean +/- std, 95% CI, n) ---
+cell             mean      std    ci_lo    ci_hi    n
+hom_notom      0.136   0.026   0.115   0.155    5
+het_notom      1.939   0.150   1.821   2.057    5
+het_tom        0.538   0.070   0.489   0.601    5
+het_notom_talk   0.004   0.003   0.001   0.006    5
+het_tom_talk   1.091   0.051   1.048   1.125    5
+het_atom       0.189   0.021   0.174   0.207    5
+het_gated_talk_tom   0.006   0.006   0.002   0.012    5
+het_gated_atom_talk   0.013   0.011   0.006   0.023    5
+
+--- cooperation_payoff (mean +/- std, 95% CI, n) ---
+cell             mean      std    ci_lo    ci_hi    n
+hom_notom      2.325   0.116   2.237   2.414    5
+het_notom      0.549   0.030   0.525   0.573    5
+het_tom        1.245   0.051   1.203   1.282    5
+het_notom_talk   1.776   0.048   1.745   1.817    5
+het_tom_talk   0.848   0.045   0.815   0.884    5
+het_atom       1.570   0.034   1.548   1.601    5
+het_gated_talk_tom   1.580   0.063   1.531   1.626    5
+het_gated_atom_talk   1.734   0.057   1.690   1.778    5
+
+--- equilibrium_convergence (mean +/- std, 95% CI, n) ---
+hom_notom      0.970   0.021   0.954   0.986    5
+het_notom      0.986   0.014   0.974   0.997    5
+het_tom        0.978   0.017   0.963   0.990    5
+het_notom_talk   0.909   0.048   0.866   0.933    5
+het_tom_talk   0.974   0.014   0.962   0.984    5
+het_atom       0.978   0.022   0.960   0.994    5
+het_gated_talk_tom   0.907   0.032   0.883   0.933    5
+het_gated_atom_talk   0.973   0.021   0.957   0.990    5
+
+--- tom_prediction_accuracy (mean +/- std, 95% CI, n) ---
+het_tom        0.518   0.024   0.499   0.536    5
+het_tom_talk   0.464   0.012   0.458   0.475    5
+het_atom       0.599   0.008   0.593   0.606    5
+het_gated_talk_tom   0.440   0.023   0.422   0.459    5
+het_gated_atom_talk   0.585   0.013   0.575   0.595    5
+
+--- gate_trust_rate ---
+het_gated_talk_tom   0.670   0.032   0.647   0.696    5
+het_gated_atom_talk   0.720   0.011   0.712   0.728    5
+
+--- gated_prediction_accuracy ---
+het_gated_talk_tom   0.537   0.033   0.508   0.557    5
+het_gated_atom_talk   0.583   0.021   0.566   0.598    5
+
+--- signal_accuracy ---
+het_gated_talk_tom   0.575   0.022   0.559   0.593    5
+het_gated_atom_talk   0.565   0.016   0.553   0.577    5
+
+--- tom_belief_accuracy_in_gated ---
+het_gated_talk_tom   0.440   0.023   0.422   0.459    5
+het_gated_atom_talk   0.585   0.013   0.575   0.595    5
+
+--- Key statistical comparisons ---
+[het_notom vs hom_notom] payoff delta=-1.776 p=0.008 r=-1.000 (het destroys coop)
+[het_tom vs het_notom]   payoff delta=+0.696 p=0.008 r=+1.000 (ToM partially rescues)
+[het_notom_talk vs het_notom] payoff delta=+1.227 p=0.008 r=+1.000 (cheap-talk rescues)
+[het_tom_talk vs het_tom]     payoff delta=-0.397 p=0.008 r=-1.000 (naive combo harmful)
+[het_atom vs het_tom]         payoff delta=+0.325 p=0.008 r=+1.000 (improved A-ToM works!)
+[het_gated_talk_tom vs het_tom_talk] payoff delta=+0.732 p=0.008 r=+1.000 (gated beats naive!)
+[het_gated_talk_tom vs het_tom]      payoff delta=+0.335 p=0.008 r=+1.000 (gated beats fixed ToM!)
+[het_gated_atom_talk vs het_gated_talk_tom] payoff delta=+0.154 p=0.008 r=+1.000 (A-ToM adds under gating)
+[het_gated_talk_tom vs hom_notom]  payoff delta=-0.745 p=0.008 r=-1.000 (still below baseline)
+[het_gated_atom_talk vs hom_notom] payoff delta=-0.591 p=0.008 r=-1.000 (still below baseline)
+
+==============================================================================
+DECISION (pre-registered)
+==============================================================================
+NEGATIVE/PARTIAL: Trap NOT fully broken.
+  - [round-1 het_tom] diversity delta=+0.403 (>0? True); payoff delta=-1.080 p=0.008 (>0? False)
+  - [round-3 het_gated_talk_tom] diversity delta=-0.129 (>0? False); payoff delta=-0.745 p=0.008 (>0? False)
+  - [round-3 het_gated_atom_talk] diversity delta=-0.122 (>0? False); payoff delta=-0.591 p=0.008 (>0? False)

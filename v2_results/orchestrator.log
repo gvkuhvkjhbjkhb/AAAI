@@ -1,0 +1,147 @@
+[08:33:44] ================================================================
+[08:33:44] V2 ORCHESTRATOR START  (2 GPU, <=3 procs/GPU, <=28GB/GPU, 60s stagger)
+[08:33:44] ================================================================
+[08:33:44] waiting for Llama snapshot to be ready (up to 2400s)...
+[08:33:44] Llama snapshot ready: /root/.cache/huggingface/hub/models--NousResearch--Meta-Llama-3.1-8B-Instruct/snapshots/d10aef7999a2b5ba950ab3974312feeedbfe0b77
+[08:33:44] 
+##### PHASE 1 / Exp C — payoff-in-prompt baseline #####
+[08:33:44] LAUNCH gpu0 (+9GB -> 9/28GB, 1 procs)  C_2p
+    $ CUDA_VISIBLE_DEVICES=0 python3 /data/lab/gsaca/run_experiment_local.py --games chicken hawk_dove deadlock stag_hunt battle_of_the_sexes --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_payoff_prompt --out_dir /data/lab/results/v2/exp_c_payoff_prompt --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force > /data/lab/results/v2/exp_c_payoff_prompt/C_2p.log 2>&1
+[08:34:44] LAUNCH gpu1 (+9GB -> 9/28GB, 1 procs)  C_pg
+    $ CUDA_VISIBLE_DEVICES=1 python3 /data/lab/gsaca/run_experiment_local.py --games public_goods --seeds 42 43 44 45 46 --episodes 20 --horizon 5 --memory 2 --cells het_payoff_prompt --out_dir /data/lab/results/v2/exp_c_payoff_prompt --log_every 10 --gsaca_warmup 3 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force > /data/lab/results/v2/exp_c_payoff_prompt/C_pg.log 2>&1
+[08:40:44] DONE  gpu1 rc=0  C_pg  (OK)
+[08:55:45] DONE  gpu0 rc=0  C_2p  (OK)
+[08:55:45] P1 done: 30 metrics in /data/lab/results/v2/exp_c_payoff_prompt
+[08:55:45] 
+##### PHASE 2 / Exp A — hom controls + QL-het #####
+[08:55:45]   reused 100 existing QG-het metric files -> /data/lab/results/v2/exp_a_pairs
+[08:55:45] LAUNCH gpu0 (+4GB -> 4/28GB, 1 procs)  A_qq_g0
+    $ CUDA_VISIBLE_DEVICES=0 python3 /data/lab/gsaca/run_experiment_local.py --games chicken hawk_dove deadlock --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells hom_notom hom_gated_atom_talk hom_dp_gated_atom_talk hom_gsaca --out_dir /data/lab/results/v2/exp_a_pairs --log_every 10 --gsaca_warmup 5 --model_homo Qwen/Qwen2.5-7B-Instruct --force > /data/lab/results/v2/exp_a_pairs/A_qq_g0.log 2>&1
+[08:56:45] LAUNCH gpu1 (+4GB -> 4/28GB, 1 procs)  A_qq_g1
+    $ CUDA_VISIBLE_DEVICES=1 python3 /data/lab/gsaca/run_experiment_local.py --games stag_hunt battle_of_the_sexes --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells hom_notom hom_gated_atom_talk hom_dp_gated_atom_talk hom_gsaca --out_dir /data/lab/results/v2/exp_a_pairs --log_every 10 --gsaca_warmup 5 --model_homo Qwen/Qwen2.5-7B-Instruct --force > /data/lab/results/v2/exp_a_pairs/A_qq_g1.log 2>&1
+[08:57:45] LAUNCH gpu0 (+5GB -> 9/28GB, 2 procs)  A_gg_g0
+    $ CUDA_VISIBLE_DEVICES=0 python3 /data/lab/gsaca/run_experiment_local.py --games chicken hawk_dove deadlock --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells hom_notom hom_gated_atom_talk hom_dp_gated_atom_talk hom_gsaca --out_dir /data/lab/results/v2/exp_a_pairs --log_every 10 --gsaca_warmup 5 --model_homo THUDM/GLM-4-9B-0414 --force > /data/lab/results/v2/exp_a_pairs/A_gg_g0.log 2>&1
+[08:58:45] LAUNCH gpu1 (+5GB -> 9/28GB, 2 procs)  A_gg_g1
+    $ CUDA_VISIBLE_DEVICES=1 python3 /data/lab/gsaca/run_experiment_local.py --games stag_hunt battle_of_the_sexes --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells hom_notom hom_gated_atom_talk hom_dp_gated_atom_talk hom_gsaca --out_dir /data/lab/results/v2/exp_a_pairs --log_every 10 --gsaca_warmup 5 --model_homo THUDM/GLM-4-9B-0414 --force > /data/lab/results/v2/exp_a_pairs/A_gg_g1.log 2>&1
+[08:59:46] LAUNCH gpu0 (+9GB -> 18/28GB, 3 procs)  A_ql_g0
+    $ CUDA_VISIBLE_DEVICES=0 python3 /data/lab/gsaca/run_experiment_local.py --games chicken hawk_dove deadlock --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_notom het_gated_atom_talk het_dp_gated_atom_talk het_gsaca --out_dir /data/lab/results/v2/exp_a_pairs --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct NousResearch/Meta-Llama-3.1-8B-Instruct --force > /data/lab/results/v2/exp_a_pairs/A_ql_g0.log 2>&1
+[09:00:46] LAUNCH gpu1 (+9GB -> 18/28GB, 3 procs)  A_ql_g1
+    $ CUDA_VISIBLE_DEVICES=1 python3 /data/lab/gsaca/run_experiment_local.py --games stag_hunt battle_of_the_sexes --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_notom het_gated_atom_talk het_dp_gated_atom_talk het_gsaca --out_dir /data/lab/results/v2/exp_a_pairs --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct NousResearch/Meta-Llama-3.1-8B-Instruct --force > /data/lab/results/v2/exp_a_pairs/A_ql_g1.log 2>&1
+[12:06:56] DONE  gpu1 rc=0  A_qq_g1  (OK)
+[12:27:27] DONE  gpu1 rc=0  A_ql_g1  (OK)
+[13:43:01] DONE  gpu0 rc=0  A_qq_g0  (OK)
+[13:51:32] DONE  gpu0 rc=-9  A_gg_g0  (FAIL)
+[13:51:32] DONE  gpu1 rc=-9  A_gg_g1  (FAIL)
+[13:51:32] DONE  gpu0 rc=-9  A_ql_g0  (FAIL)
+[13:51:32] P2 done: 200 metrics in /data/lab/results/v2/exp_a_pairs
+[13:51:32] 
+##### PHASE 3 / Exp D — stress test (noise + matching_pennies) #####
+[13:51:32] LAUNCH gpu0 (+9GB -> 9/28GB, 1 procs)  D1_n00_2p
+    $ CUDA_VISIBLE_DEVICES=0 python3 /data/lab/gsaca/run_experiment_local.py --games chicken hawk_dove deadlock stag_hunt battle_of_the_sexes --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_gsaca --out_dir /data/lab/results/v2/exp_d_stress/d1_noise --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force --payoff_noise_std 0.0 > /data/lab/results/v2/exp_d_stress/d1_noise/D1_n00_2p.log 2>&1
+[13:52:32] LAUNCH gpu1 (+9GB -> 9/28GB, 1 procs)  D1_n00_pg
+    $ CUDA_VISIBLE_DEVICES=1 python3 /data/lab/gsaca/run_experiment_local.py --games public_goods --seeds 42 43 44 45 46 --episodes 20 --horizon 5 --memory 2 --cells het_gsaca --out_dir /data/lab/results/v2/exp_d_stress/d1_noise --log_every 10 --gsaca_warmup 3 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force --payoff_noise_std 0.0 > /data/lab/results/v2/exp_d_stress/d1_noise/D1_n00_pg.log 2>&1
+[13:53:32] LAUNCH gpu0 (+9GB -> 18/28GB, 2 procs)  D1_n05_2p
+    $ CUDA_VISIBLE_DEVICES=0 python3 /data/lab/gsaca/run_experiment_local.py --games chicken hawk_dove deadlock stag_hunt battle_of_the_sexes --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_gsaca --out_dir /data/lab/results/v2/exp_d_stress/d1_noise --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force --payoff_noise_std 0.5 > /data/lab/results/v2/exp_d_stress/d1_noise/D1_n05_2p.log 2>&1
+[13:54:32] LAUNCH gpu1 (+9GB -> 18/28GB, 2 procs)  D1_n05_pg
+    $ CUDA_VISIBLE_DEVICES=1 python3 /data/lab/gsaca/run_experiment_local.py --games public_goods --seeds 42 43 44 45 46 --episodes 20 --horizon 5 --memory 2 --cells het_gsaca --out_dir /data/lab/results/v2/exp_d_stress/d1_noise --log_every 10 --gsaca_warmup 3 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force --payoff_noise_std 0.5 > /data/lab/results/v2/exp_d_stress/d1_noise/D1_n05_pg.log 2>&1
+[13:55:32] LAUNCH gpu0 (+9GB -> 27/28GB, 3 procs)  D1_n10_2p
+    $ CUDA_VISIBLE_DEVICES=0 python3 /data/lab/gsaca/run_experiment_local.py --games chicken hawk_dove deadlock stag_hunt battle_of_the_sexes --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_gsaca --out_dir /data/lab/results/v2/exp_d_stress/d1_noise --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force --payoff_noise_std 1.0 > /data/lab/results/v2/exp_d_stress/d1_noise/D1_n10_2p.log 2>&1
+[13:56:32] LAUNCH gpu1 (+9GB -> 27/28GB, 3 procs)  D1_n10_pg
+    $ CUDA_VISIBLE_DEVICES=1 python3 /data/lab/gsaca/run_experiment_local.py --games public_goods --seeds 42 43 44 45 46 --episodes 20 --horizon 5 --memory 2 --cells het_gsaca --out_dir /data/lab/results/v2/exp_d_stress/d1_noise --log_every 10 --gsaca_warmup 3 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force --payoff_noise_std 1.0 > /data/lab/results/v2/exp_d_stress/d1_noise/D1_n10_pg.log 2>&1
+[13:57:32] DONE  gpu0 rc=0  D1_n05_2p  (OK)
+[13:57:32] DONE  gpu1 rc=0  D1_n05_pg  (OK)
+[13:57:32] DONE  gpu0 rc=0  D1_n10_2p  (OK)
+[13:57:32] DONE  gpu1 rc=0  D1_n10_pg  (OK)
+[13:57:32] LAUNCH gpu0 (+9GB -> 18/28GB, 2 procs)  D1_n20_2p
+    $ CUDA_VISIBLE_DEVICES=0 python3 /data/lab/gsaca/run_experiment_local.py --games chicken hawk_dove deadlock stag_hunt battle_of_the_sexes --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_gsaca --out_dir /data/lab/results/v2/exp_d_stress/d1_noise --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force --payoff_noise_std 2.0 > /data/lab/results/v2/exp_d_stress/d1_noise/D1_n20_2p.log 2>&1
+[13:58:32] LAUNCH gpu1 (+9GB -> 18/28GB, 2 procs)  D1_n20_pg
+    $ CUDA_VISIBLE_DEVICES=1 python3 /data/lab/gsaca/run_experiment_local.py --games public_goods --seeds 42 43 44 45 46 --episodes 20 --horizon 5 --memory 2 --cells het_gsaca --out_dir /data/lab/results/v2/exp_d_stress/d1_noise --log_every 10 --gsaca_warmup 3 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force --payoff_noise_std 2.0 > /data/lab/results/v2/exp_d_stress/d1_noise/D1_n20_pg.log 2>&1
+[13:59:32] LAUNCH gpu0 (+9GB -> 27/28GB, 3 procs)  D2_mp_QG
+    $ CUDA_VISIBLE_DEVICES=0 python3 /data/lab/gsaca/run_experiment_local.py --games matching_pennies --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_notom het_gated_atom_talk het_dp_gated_atom_talk het_gsaca --out_dir /data/lab/results/v2/exp_d_stress/d2_mp --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force > /data/lab/results/v2/exp_d_stress/d2_mp/D2_mp_QG.log 2>&1
+[14:00:32] LAUNCH gpu1 (+9GB -> 27/28GB, 3 procs)  D2_mp_QL
+    $ CUDA_VISIBLE_DEVICES=1 python3 /data/lab/gsaca/run_experiment_local.py --games matching_pennies --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_notom het_gated_atom_talk het_dp_gated_atom_talk het_gsaca --out_dir /data/lab/results/v2/exp_d_stress/d2_mp --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct NousResearch/Meta-Llama-3.1-8B-Instruct --force > /data/lab/results/v2/exp_d_stress/d2_mp/D2_mp_QL.log 2>&1
+[14:01:32] DONE  gpu0 rc=0  D1_n20_2p  (OK)
+[14:01:32] DONE  gpu1 rc=0  D1_n20_pg  (OK)
+[14:01:32] LAUNCH gpu0 (+4GB -> 22/28GB, 3 procs)  D2_mp_QQ
+    $ CUDA_VISIBLE_DEVICES=0 python3 /data/lab/gsaca/run_experiment_local.py --games matching_pennies --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells hom_notom hom_gated_atom_talk hom_dp_gated_atom_talk hom_gsaca --out_dir /data/lab/results/v2/exp_d_stress/d2_mp --log_every 10 --gsaca_warmup 5 --model_homo Qwen/Qwen2.5-7B-Instruct --force > /data/lab/results/v2/exp_d_stress/d2_mp/D2_mp_QQ.log 2>&1
+[14:02:32] DONE  gpu0 rc=0  D2_mp_QQ  (OK)
+[15:23:37] DONE  gpu1 rc=0  D2_mp_QL  (OK)
+[16:00:39] DONE  gpu0 rc=0  D2_mp_QG  (OK)
+[17:11:43] DONE  gpu0 rc=0  D1_n00_2p  (OK)
+[17:35:59] DONE  gpu1 rc=0  D1_n00_pg  (OK)
+[17:35:59] P3 done: 50 metrics in /data/lab/results/v2/exp_d_stress
+[17:35:59] 
+##### PHASE 4 / Exp E — hyperparam sweep #####
+[17:35:59] LAUNCH gpu0 (+9GB -> 9/28GB, 1 procs)  E_th_03
+    $ CUDA_VISIBLE_DEVICES=0 python3 /data/lab/gsaca/run_experiment_local.py --games chicken battle_of_the_sexes --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_dp_gated_atom_talk --out_dir /data/lab/results/v2/exp_e_hyperparam/theta --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force --gate_trust_threshold 0.3 --gate_ema_alpha 0.3 > /data/lab/results/v2/exp_e_hyperparam/theta/E_th_03.log 2>&1
+[17:36:59] LAUNCH gpu1 (+9GB -> 9/28GB, 1 procs)  E_th_045
+    $ CUDA_VISIBLE_DEVICES=1 python3 /data/lab/gsaca/run_experiment_local.py --games chicken battle_of_the_sexes --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_dp_gated_atom_talk --out_dir /data/lab/results/v2/exp_e_hyperparam/theta --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force --gate_trust_threshold 0.45 --gate_ema_alpha 0.3 > /data/lab/results/v2/exp_e_hyperparam/theta/E_th_045.log 2>&1
+[17:37:59] LAUNCH gpu0 (+9GB -> 18/28GB, 2 procs)  E_th_06
+    $ CUDA_VISIBLE_DEVICES=0 python3 /data/lab/gsaca/run_experiment_local.py --games chicken battle_of_the_sexes --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_dp_gated_atom_talk --out_dir /data/lab/results/v2/exp_e_hyperparam/theta --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force --gate_trust_threshold 0.6 --gate_ema_alpha 0.3 > /data/lab/results/v2/exp_e_hyperparam/theta/E_th_06.log 2>&1
+[17:38:59] LAUNCH gpu1 (+9GB -> 18/28GB, 2 procs)  E_th_075
+    $ CUDA_VISIBLE_DEVICES=1 python3 /data/lab/gsaca/run_experiment_local.py --games chicken battle_of_the_sexes --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_dp_gated_atom_talk --out_dir /data/lab/results/v2/exp_e_hyperparam/theta --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force --gate_trust_threshold 0.75 --gate_ema_alpha 0.3 > /data/lab/results/v2/exp_e_hyperparam/theta/E_th_075.log 2>&1
+[17:39:59] LAUNCH gpu0 (+9GB -> 27/28GB, 3 procs)  E_th_09
+    $ CUDA_VISIBLE_DEVICES=0 python3 /data/lab/gsaca/run_experiment_local.py --games chicken battle_of_the_sexes --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_dp_gated_atom_talk --out_dir /data/lab/results/v2/exp_e_hyperparam/theta --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force --gate_trust_threshold 0.9 --gate_ema_alpha 0.3 > /data/lab/results/v2/exp_e_hyperparam/theta/E_th_09.log 2>&1
+[17:40:59] LAUNCH gpu1 (+9GB -> 27/28GB, 3 procs)  E_al_01
+    $ CUDA_VISIBLE_DEVICES=1 python3 /data/lab/gsaca/run_experiment_local.py --games chicken battle_of_the_sexes --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_dp_gated_atom_talk --out_dir /data/lab/results/v2/exp_e_hyperparam/alpha --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force --gate_ema_alpha 0.1 --gate_trust_threshold 0.6 > /data/lab/results/v2/exp_e_hyperparam/alpha/E_al_01.log 2>&1
+[17:41:59] DONE  gpu0 rc=0  E_th_09  (OK)
+[17:41:59] DONE  gpu1 rc=0  E_al_01  (OK)
+[17:41:59] LAUNCH gpu0 (+9GB -> 27/28GB, 3 procs)  E_al_02
+    $ CUDA_VISIBLE_DEVICES=0 python3 /data/lab/gsaca/run_experiment_local.py --games chicken battle_of_the_sexes --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_dp_gated_atom_talk --out_dir /data/lab/results/v2/exp_e_hyperparam/alpha --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force --gate_ema_alpha 0.2 --gate_trust_threshold 0.6 > /data/lab/results/v2/exp_e_hyperparam/alpha/E_al_02.log 2>&1
+[17:42:59] LAUNCH gpu1 (+9GB -> 27/28GB, 3 procs)  E_al_03
+    $ CUDA_VISIBLE_DEVICES=1 python3 /data/lab/gsaca/run_experiment_local.py --games chicken battle_of_the_sexes --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_dp_gated_atom_talk --out_dir /data/lab/results/v2/exp_e_hyperparam/alpha --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force --gate_ema_alpha 0.3 --gate_trust_threshold 0.6 > /data/lab/results/v2/exp_e_hyperparam/alpha/E_al_03.log 2>&1
+[17:43:59] DONE  gpu0 rc=0  E_al_02  (OK)
+[17:43:59] DONE  gpu1 rc=0  E_al_03  (OK)
+[17:43:59] LAUNCH gpu0 (+9GB -> 27/28GB, 3 procs)  E_al_05
+    $ CUDA_VISIBLE_DEVICES=0 python3 /data/lab/gsaca/run_experiment_local.py --games chicken battle_of_the_sexes --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_dp_gated_atom_talk --out_dir /data/lab/results/v2/exp_e_hyperparam/alpha --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force --gate_ema_alpha 0.5 --gate_trust_threshold 0.6 > /data/lab/results/v2/exp_e_hyperparam/alpha/E_al_05.log 2>&1
+[17:44:59] LAUNCH gpu1 (+9GB -> 27/28GB, 3 procs)  E_W_2
+    $ CUDA_VISIBLE_DEVICES=1 python3 /data/lab/gsaca/run_experiment_local.py --games chicken battle_of_the_sexes --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_gsaca --out_dir /data/lab/results/v2/exp_e_hyperparam/warmup --log_every 10 --gsaca_warmup 2 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force --gate_trust_threshold 0.6 --gate_ema_alpha 0.3 > /data/lab/results/v2/exp_e_hyperparam/warmup/E_W_2.log 2>&1
+[17:45:59] DONE  gpu0 rc=0  E_al_05  (OK)
+[17:45:59] DONE  gpu1 rc=0  E_W_2  (OK)
+[17:45:59] LAUNCH gpu0 (+9GB -> 27/28GB, 3 procs)  E_W_3
+    $ CUDA_VISIBLE_DEVICES=0 python3 /data/lab/gsaca/run_experiment_local.py --games chicken battle_of_the_sexes --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_gsaca --out_dir /data/lab/results/v2/exp_e_hyperparam/warmup --log_every 10 --gsaca_warmup 3 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force --gate_trust_threshold 0.6 --gate_ema_alpha 0.3 > /data/lab/results/v2/exp_e_hyperparam/warmup/E_W_3.log 2>&1
+[17:47:00] LAUNCH gpu1 (+9GB -> 27/28GB, 3 procs)  E_W_5
+    $ CUDA_VISIBLE_DEVICES=1 python3 /data/lab/gsaca/run_experiment_local.py --games chicken battle_of_the_sexes --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_gsaca --out_dir /data/lab/results/v2/exp_e_hyperparam/warmup --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force --gate_trust_threshold 0.6 --gate_ema_alpha 0.3 > /data/lab/results/v2/exp_e_hyperparam/warmup/E_W_5.log 2>&1
+[17:48:00] DONE  gpu0 rc=0  E_W_3  (OK)
+[17:48:00] DONE  gpu1 rc=0  E_W_5  (OK)
+[17:48:00] LAUNCH gpu0 (+9GB -> 27/28GB, 3 procs)  E_W_8
+    $ CUDA_VISIBLE_DEVICES=0 python3 /data/lab/gsaca/run_experiment_local.py --games chicken battle_of_the_sexes --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_gsaca --out_dir /data/lab/results/v2/exp_e_hyperparam/warmup --log_every 10 --gsaca_warmup 8 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force --gate_trust_threshold 0.6 --gate_ema_alpha 0.3 > /data/lab/results/v2/exp_e_hyperparam/warmup/E_W_8.log 2>&1
+[17:49:00] LAUNCH gpu1 (+9GB -> 27/28GB, 3 procs)  E_W_10
+    $ CUDA_VISIBLE_DEVICES=1 python3 /data/lab/gsaca/run_experiment_local.py --games chicken battle_of_the_sexes --seeds 42 43 44 45 46 --episodes 30 --horizon 5 --memory 2 --cells het_gsaca --out_dir /data/lab/results/v2/exp_e_hyperparam/warmup --log_every 10 --gsaca_warmup 10 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force --gate_trust_threshold 0.6 --gate_ema_alpha 0.3 > /data/lab/results/v2/exp_e_hyperparam/warmup/E_W_10.log 2>&1
+[17:50:00] DONE  gpu0 rc=0  E_W_8  (OK)
+[17:50:00] DONE  gpu1 rc=0  E_W_10  (OK)
+[18:58:48] DONE  gpu1 rc=0  E_th_045  (OK)
+[18:59:03] DONE  gpu1 rc=0  E_th_075  (OK)
+[18:59:48] DONE  gpu0 rc=0  E_th_06  (OK)
+[19:00:03] DONE  gpu0 rc=0  E_th_03  (OK)
+[19:00:03] P4 done: 10 metrics in /data/lab/results/v2/exp_e_hyperparam
+[19:00:03] 
+##### PHASE 5 / Exp B — 20-seed full rerun (auto-chain) #####
+[19:00:03] LAUNCH gpu0 (+9GB -> 9/28GB, 1 procs)  B_chicken
+    $ CUDA_VISIBLE_DEVICES=0 python3 /data/lab/gsaca/run_experiment_local.py --games chicken --seeds 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 --episodes 30 --horizon 5 --memory 2 --cells het_notom het_gated_atom_talk het_dp_gated_atom_talk het_gsaca --out_dir /data/lab/results/v2/exp_b_20seed --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force > /data/lab/results/v2/exp_b_20seed/B_chicken.log 2>&1
+[19:01:03] LAUNCH gpu1 (+9GB -> 9/28GB, 1 procs)  B_hawk_dove
+    $ CUDA_VISIBLE_DEVICES=1 python3 /data/lab/gsaca/run_experiment_local.py --games hawk_dove --seeds 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 --episodes 30 --horizon 5 --memory 2 --cells het_notom het_gated_atom_talk het_dp_gated_atom_talk het_gsaca --out_dir /data/lab/results/v2/exp_b_20seed --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force > /data/lab/results/v2/exp_b_20seed/B_hawk_dove.log 2>&1
+[19:02:04] LAUNCH gpu0 (+9GB -> 18/28GB, 2 procs)  B_deadlock
+    $ CUDA_VISIBLE_DEVICES=0 python3 /data/lab/gsaca/run_experiment_local.py --games deadlock --seeds 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 --episodes 30 --horizon 5 --memory 2 --cells het_notom het_gated_atom_talk het_dp_gated_atom_talk het_gsaca --out_dir /data/lab/results/v2/exp_b_20seed --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force > /data/lab/results/v2/exp_b_20seed/B_deadlock.log 2>&1
+[19:03:04] LAUNCH gpu1 (+9GB -> 18/28GB, 2 procs)  B_stag_hunt
+    $ CUDA_VISIBLE_DEVICES=1 python3 /data/lab/gsaca/run_experiment_local.py --games stag_hunt --seeds 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 --episodes 30 --horizon 5 --memory 2 --cells het_notom het_gated_atom_talk het_dp_gated_atom_talk het_gsaca --out_dir /data/lab/results/v2/exp_b_20seed --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force > /data/lab/results/v2/exp_b_20seed/B_stag_hunt.log 2>&1
+[19:04:04] LAUNCH gpu0 (+9GB -> 27/28GB, 3 procs)  B_battle_of_the_sexes
+    $ CUDA_VISIBLE_DEVICES=0 python3 /data/lab/gsaca/run_experiment_local.py --games battle_of_the_sexes --seeds 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 --episodes 30 --horizon 5 --memory 2 --cells het_notom het_gated_atom_talk het_dp_gated_atom_talk het_gsaca --out_dir /data/lab/results/v2/exp_b_20seed --log_every 10 --gsaca_warmup 5 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force > /data/lab/results/v2/exp_b_20seed/B_battle_of_the_sexes.log 2>&1
+[19:05:04] LAUNCH gpu1 (+9GB -> 27/28GB, 3 procs)  B_public_goods
+    $ CUDA_VISIBLE_DEVICES=1 python3 /data/lab/gsaca/run_experiment_local.py --games public_goods --seeds 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 --episodes 20 --horizon 5 --memory 2 --cells het_notom het_gated_atom_talk het_dp_gated_atom_talk het_gsaca --out_dir /data/lab/results/v2/exp_b_20seed --log_every 10 --gsaca_warmup 3 --models_het Qwen/Qwen2.5-7B-Instruct THUDM/GLM-4-9B-0414 --force > /data/lab/results/v2/exp_b_20seed/B_public_goods.log 2>&1
+[19:06:04] DONE  gpu0 rc=0  B_battle_of_the_sexes  (OK)
+[19:06:34] DONE  gpu1 rc=0  B_public_goods  (OK)
+[03:08:44] DONE  gpu1 rc=0  B_hawk_dove  (OK)
+[03:21:00] DONE  gpu0 rc=0  B_chicken  (OK)
+[03:45:46] DONE  gpu1 rc=0  B_stag_hunt  (OK)
+[04:27:34] DONE  gpu0 rc=0  B_deadlock  (OK)
+[04:27:34] P5 done: 320 metrics in /data/lab/results/v2/exp_b_20seed
+[04:27:34] 
+================================================================
+[04:27:34] V2 ORCHESTRATOR COMPLETE
+[04:27:34]   exp_c_payoff_prompt    30 metrics
+[04:27:34]   exp_a_pairs            200 metrics
+[04:27:34]   exp_d_stress           50 metrics
+[04:27:34]   exp_e_hyperparam       10 metrics
+[04:27:34]   exp_b_20seed           320 metrics
+[04:27:34] ================================================================

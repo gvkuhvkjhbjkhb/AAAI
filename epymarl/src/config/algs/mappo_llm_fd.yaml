@@ -1,0 +1,114 @@
+# --- MAPPO with LLM-assisted failure diagnosis ---
+
+action_selector: "soft_policies"
+mask_before_softmax: True
+
+runner: "parallel"
+
+buffer_size: 10
+batch_size_run: 10
+batch_size: 10
+
+target_update_interval_or_tau: 0.01
+
+lr: 0.0003
+hidden_dim: 128
+
+obs_agent_id: True
+obs_last_action: False
+obs_individual_obs: False
+
+agent_output_type: "pi_logits"
+learner: "ppo_learner"
+entropy_coef: 0.001
+use_rnn: True
+standardise_returns: False
+standardise_rewards: True
+q_nstep: 5
+critic_type: "cv_critic"
+epochs: 4
+eps_clip: 0.2
+name: "mappo_llm_fd"
+
+t_max: 20050000
+
+llm_fd_enabled: True
+llm_fd_classifier: "heuristic"
+llm_fd_failure_percentile: 30.0
+llm_fd_min_history: 20
+llm_fd_max_records: 500
+llm_fd_apply_reward_shaping: False
+llm_fd_terminal_bonus: 0.0
+llm_fd_failure_penalty: 0.0
+llm_fd_intervention_mode: "uniform"
+llm_fd_confidence_floor: 0.40
+llm_fd_confidence_reference: 0.62
+llm_fd_confidence_min_multiplier: 0.70
+llm_fd_confidence_max_multiplier: 1.30
+llm_fd_early_phase_weight: 0.50
+llm_fd_middle_phase_weight: 1.00
+llm_fd_late_phase_weight: 0.30
+llm_fd_random_type_use_phase: False
+llm_fd_matched_random_pool: 10000
+llm_fd_semantic_gate_threshold: 0.55
+llm_fd_semantic_gate_fallback_weight: 1.0
+llm_fd_weight_inefficient_exploration: 0.80
+llm_fd_weight_target_miscoordination: 1.20
+llm_fd_weight_insufficient_cooperation: 1.10
+llm_fd_weight_low_value_overcommitment: 1.40
+llm_fd_weight_timeout_near_success: 0.00
+llm_fd_weight_unknown: 0.80
+
+# Outcome-contrast shaping options for non-LLM redesign experiments.
+llm_fd_success_bonus: 0.0
+llm_fd_outcome_penalty: 0.0
+llm_fd_success_percentile: 70.0
+llm_fd_outcome_failure_percentile: 30.0
+llm_fd_success_min_return: 0.0
+llm_fd_outcome_use_phase: False
+
+# Failure-Aware PBRS options (Track B redesign).
+llm_fd_pbrs_lambda: 0.05
+llm_fd_pbrs_alpha: 0.01
+llm_fd_pbrs_beta: 0.05
+llm_fd_pbrs_success_percentile: 70.0
+llm_fd_pbrs_success_min_return: 0.0
+llm_fd_pbrs_adaptive: True
+llm_fd_pbrs_random_features: False
+llm_fd_pbrs_random_weights: False
+llm_fd_pbrs_grid_size: 10
+llm_fd_pbrs_novelty_decay: 0.999
+llm_fd_pbrs_novelty_floor: 0.05
+
+# Q-Shaping options
+qs_enabled: False
+qs_lambda: 0.02
+qs_alpha: 0.01
+qs_beta: 0.05
+qs_adaptive: True
+qs_random_features: False
+qs_random_weights: False
+qs_grid_size: 10
+qs_success_percentile: 70.0
+qs_success_min_return: 0.0
+
+# Diagnosis-Gated PBRS (DG-PBS) options
+llm_fd_dg_window: 50
+llm_fd_dg_warmup: 20
+llm_fd_dg_smoothing: 0.8
+llm_fd_dg_temperature: 5.0
+<<<<<<< HEAD
+llm_fd_dg_gate_max: 2.0
+llm_fd_dg_gate_min: 0.1
+
+# Failure-Mode-aware Exploration (FME) options
+llm_fd_fme_bonus_scale: 0.01
+llm_fd_fme_window: 50
+llm_fd_fme_warmup: 20
+llm_fd_fme_smoothing: 0.8
+llm_fd_fme_max_scale: 3.0
+llm_fd_fme_min_scale: 0.5
+llm_fd_fme_failure_percentile: 30.0
+llm_fd_fme_min_history: 20
+=======
+>>>>>>> 65f65adb6907093a6c384e9b1f5ec2c00fcec878

@@ -1,0 +1,21 @@
+10x10 tuning and offline relabel experiment pause status
+
+Requested action: pause the currently running 10x10 tuning experiment and save the current-stage code plus useful data to GitHub.
+
+Status: Lab Compute disconnected before the pause command could be executed. The stop command could not be sent to the Lab machine from this session. The current local repository state has been preserved and pushed-ready: it includes the 10x10 tuning plan, the tuning runner, and the Hugging Face-enabled offline relabeling implementation.
+
+Important code saved in this checkpoint:
+- epymarl/src/llm_diagnosis/offline_relabel.py
+- formal_experiment_plan_10x10_tuning_relabel.txt
+- run_10x10_tuning_relabel.sh
+
+Important prior data already preserved in GitHub before this checkpoint:
+- epymarl/results/formal_llm_fdcr_8x8/summary.csv and summary.txt
+- epymarl/results/formal_llm_fdcr_round2/summary.csv and summary.txt
+- epymarl/results/llm_fd/*/failure_records.jsonl from prior completed runs
+
+Next action when Lab reconnects:
+1. Check whether the background tuning job is still running.
+2. Stop it if still running: pkill -f 'src/main.py'; pkill -f 'run_10x10_tuning_relabel.sh'; pkill -f 'offline_relabel'.
+3. Copy any partial results from results/formal_10x10_tuning and results/offline_relabel_tuning.
+4. Commit those partial result files to GitHub.

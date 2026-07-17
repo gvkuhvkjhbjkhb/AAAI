@@ -1,0 +1,28 @@
+10x10 调参实验与离线重标注计划
+
+一、目标
+
+第二轮实验显示，统一 failure penalty 在 8x8 环境中提升明显，但在 10x10 3-agent 环境中低于 baseline。本轮目标是判断 10x10 失败是否来自 penalty 过强或触发过多，同时实现离线失败轨迹重标注，为后续 LLM 诊断与 failure-type-specific intervention 做准备。
+
+二、10x10 调参矩阵
+
+环境：lbforaging:Foraging-10x10-3p-3f-v3。
+训练步数：500000 environment timesteps。
+随机种子：1, 2, 3。
+方法：baseline, penalty=0.0001, penalty=0.0003, penalty=0.001。
+总运行数：4 methods x 3 seeds = 12 runs。
+
+三、预计时间
+
+10x10 300k 单 run 约 4 分钟；500k 单 run 预计 6-8 分钟。12 runs 预计 75-100 分钟，保守估计 1.5-2 小时。
+
+四、离线重标注
+
+脚本：python3 -m src.llm_diagnosis.offline_relabel。
+输入：results/llm_fd/*/failure_records.jsonl。
+输出：results/offline_relabel_tuning/summary.txt、relabels.jsonl、audit_sample.csv。
+优先模式：ollama。如果 Lab 无本地 Ollama，则使用 Hugging Face Transformers 加载 Qwen/Qwen2.5-0.5B-Instruct 进行离线重标注。如果 Hugging Face 模型也不可用，则使用 enhanced_heuristic 作为可复现替代，并在结果中明确标注 mode。
+
+五、准确性定义
+
+如果没有人工标签，summary.txt 报告 original_relabel_agreement，它表示新标签与原始 heuristic 标签的一致率，不等于真实准确率。如果提供 human labels CSV，脚本会报告 human_accuracy。audit_sample.csv 会保留 human_label 空列，供后续人工标注。

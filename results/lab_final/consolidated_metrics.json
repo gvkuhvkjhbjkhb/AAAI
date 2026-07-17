@@ -1,0 +1,48 @@
+{
+  "generated": "2026-07-10",
+  "models": ["Qwen2.5-7B-Instruct", "THUDM/GLM-4-9B-0414"],
+  "quantization": "4-bit",
+  "hardware": "2x RTX 5090 (32GB each)",
+  "experiments": {
+    "opt_direct/chicken_thr0.6": {
+      "game": "chicken",
+      "threshold": 0.6,
+      "n_seeds": 8,
+      "seeds": [42,43,44,45,46,47,48,49],
+      "episodes": 20,
+      "horizon": 5,
+      "cells": ["het_gated_atom_talk", "het_dp_gated_atom_talk"],
+      "gated_payoff_mean": 2.560,
+      "dp_payoff_mean": 3.021,
+      "delta_payoff": 0.461,
+      "p_payoff": 0.0003,
+      "gated_diversity_mean": 0.0525,
+      "dp_diversity_mean": 0.3176,
+      "delta_diversity": 0.2650,
+      "p_diversity": 0.0001,
+      "dp_win_rate": "7/8"
+    },
+    "full_battery/threshold_ablation_thr0.3": {
+      "game": "chicken",
+      "threshold": 0.3,
+      "n_seeds_gated": 6,
+      "n_seeds_dp": 8,
+      "episodes": 20,
+      "horizon": 5,
+      "gated_payoff_mean": 2.607,
+      "dp_payoff_mean": 2.994,
+      "delta_payoff": 0.387,
+      "p_payoff": 0.0040,
+      "gated_diversity_mean": 0.0573,
+      "dp_diversity_mean": 0.2866,
+      "delta_diversity": 0.2293,
+      "p_diversity": 0.0012,
+      "dp_win_rate": "6/6"
+    }
+  },
+  "earlier_p0_results": {
+    "chicken_n10": {"delta_payoff": 0.489, "p": 0.0014, "delta_diversity": 0.280, "p_div": 0.0007},
+    "hawk_dove_n8": {"delta_payoff": 0.534, "p": 0.0005, "delta_diversity": 0.149, "p_div": 0.0023},
+    "deadlock_n2": {"delta_payoff": 0.450, "p": null, "delta_diversity": 0.291, "p_div": null}
+  }
+}

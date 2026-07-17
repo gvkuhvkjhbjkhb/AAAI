@@ -1,0 +1,30 @@
+10x10 tuning and offline relabel experiment completion summary
+
+Experiment status: completed on Wed Jul 1 08:55:36 UTC 2026.
+Environment: lbforaging:Foraging-10x10-3p-3f-v3.
+Training budget: 500000 environment timesteps per run.
+Seeds: 1, 2, 3.
+Methods: baseline, penalty_0.0001, penalty_0.0003, penalty_0.001.
+
+Grouped means from results/formal_10x10_tuning/summary.txt:
+- baseline: mean_last_train_return=0.2733333333333333, mean_best_train_return=0.40573333333333333, mean_last_test_return=0.2733333333333333, mean_best_test_return=0.2733333333333333.
+- penalty_0.0001: mean_last_train_return=0.17223333333333335, mean_best_train_return=0.34323333333333333, mean_last_test_return=0.17223333333333335, mean_best_test_return=0.17223333333333335.
+- penalty_0.0003: mean_last_train_return=0.29463333333333336, mean_best_train_return=0.607, mean_last_test_return=0.29463333333333336, mean_best_test_return=0.29463333333333336.
+- penalty_0.001: mean_last_train_return=0.24393333333333334, mean_best_train_return=0.4172, mean_last_test_return=0.24393333333333334, mean_best_test_return=0.24393333333333334.
+
+Main finding: penalty_0.0003 is the strongest setting in this sweep. Compared with baseline, it improves mean_best_train_return from 0.4057 to 0.6070 and mean_last_test_return from 0.2733 to 0.2946. penalty_0.0001 underperforms baseline, while penalty_0.001 improves mean_best_train_return slightly but lowers mean_last_test_return.
+
+Offline relabeling:
+- mode: enhanced_heuristic, because no local Ollama model was available and the Hugging Face dependency check failed before falling back.
+- records: 1000.
+- original_counts: inefficient_exploration=991, insufficient_cooperation=9.
+- relabel_counts: inefficient_exploration=963, target_miscoordination=26, insufficient_cooperation=11.
+- original_relabel_agreement: 0.9700.
+- human_accuracy: NA, no human labels supplied.
+
+Saved artifacts:
+- results/formal_10x10_tuning/STATUS.txt.
+- results/formal_10x10_tuning/summary.csv and summary.txt.
+- results/formal_10x10_tuning/logs/*.log.
+- results/offline_relabel_tuning/summary.txt, relabels.jsonl, audit_sample.csv.
+- results/llm_fd/*2026-07-01*/failure_records.jsonl from the third experiment.
