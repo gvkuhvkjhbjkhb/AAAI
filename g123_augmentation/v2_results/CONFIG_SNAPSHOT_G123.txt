@@ -1,0 +1,24 @@
+=== CONFIG SNAPSHOT (frozen) — G1/G2/G3 augmentation runs ===
+generated_utc=2026-07-17T15:5x
+base_git_commit=c3800f0dd2d4bf93299ec28dcd13a8dae4364412 (AAAI repo)
+python=Python 3.10.12
+vllm=0.23.0  torch=2.11.0+cu128  transformers=4.56.2  cuda=12.8  driver=580.105.08
+GPUs: 2x NVIDIA GeForce RTX 5090 (32GB each, sm_120 Blackwell)
+servers: bash code/start_vllm.sh
+  - GPU0 Qwen2.5-7B-Instruct :8000 bf16 util0.85 maxlen2048 --enforce-eager
+  - GPU1 THUDM/GLM-4-9B-0414 :8001 bf16 util0.85 maxlen2048 --enforce-eager
+  - VLLM_USE_FLASHINFER_SAMPLER=0 (5090 sm_120 rejected by FlashInfer JIT)
+  - LD_LIBRARY_PATH includes nvidia/cu13/lib (vllm0.23 links libcudart.so.13)
+inference: bf16, top_p per group, temps_het=[0.5,0.8], horizon5 memory2
+  - 2-player episodes=30, public_goods episodes=20 (--auto_episodes)
+  - tom_order1 gate_trust0.6 gate_ema0.3 atom_warmup3 gen_seed_base1000
+arms: het_notom(NoAlign/NoToM), het_gated_atom_talk(Gated), het_dp_gated_atom_talk(CGA), het_gsaca, het_bandit(new)
+G1 exp_g1_bandit:  het_bandit   6 games x 20 seeds(42-61)  top_p=0.9  bandit_k=5
+  - decision rule FROZEN: probe NoAlign & Gated K=5 eps each, order alternated by
+    seed parity (even->NoAlign first, odd->Gated first); commit remaining eps to
+    the probe-mean winner (ties->NoAlign). NO game-label/oracle arm assignment.
+  - n_commit = episodes - 2K (20 for 2-player, 10 for public_goods)
+G2 exp_g2_topp1:   het_notom + het_gated_atom_talk  3 anti-coord games x 10 seeds(42-51)  top_p=1.0
+G3 exp_g3_detect:  het_gsaca  6 games x 5 seeds(42-46)  top_p=0.9  (online detection re-run on stack B)
+analysis: code/analyze_g1_bandit.py (vs ground_truth_paradox.json), analyze_g2_topp1.py, analyze_g3_detect.py
+ground_truth: v2_results/ground_truth_paradox.json (from exp_vllm_paradox_attainment_v1; oracle=2.5069 SCA=2.2273)
