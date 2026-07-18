@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-07-18T13:45:00Z",
+  "purpose": "Frozen server environment for R0 diagnostic replay and S2",
+  "hardware": {
+    "gpus": [
+      {"index": 0, "name": "NVIDIA GeForce RTX 5090", "memory_total_mib": 32607, "driver_version": "580.105.08", "compute_cap": "12.0"},
+      {"index": 1, "name": "NVIDIA GeForce RTX 5090", "memory_total_mib": 32607, "driver_version": "580.105.08", "compute_cap": "12.0"}
+    ],
+    "count": 2
+  },
+  "software": {
+    "vllm": "0.25.1",
+    "torch": "2.11.0+cu128",
+    "transformers": "5.14.1",
+    "python": "3.10.12",
+    "platform": "Linux-5.15.0-113-generic-x86_64-with-glibc2.35"
+  },
+  "models": [
+    {
+      "served_name": "Qwen/Qwen2.5-7B-Instruct",
+      "hf_repo": "Qwen/Qwen2.5-7B-Instruct",
+      "revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+      "tokenizer_revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+      "gpu": 0,
+      "port": 8000,
+      "endpoint": "http://localhost:8000/v1"
+    },
+    {
+      "served_name": "THUDM/GLM-4-9B-0414",
+      "hf_repo": "THUDM/GLM-4-9B-0414",
+      "revision": "645b8482494e31b6b752272bf7f7f273ef0f3caf",
+      "tokenizer_revision": "645b8482494e31b6b752272bf7f7f273ef0f3caf",
+      "gpu": 1,
+      "port": 8001,
+      "endpoint": "http://localhost:8001/v1"
+    }
+  ],
+  "vllm_flags": {
+    "tensor_parallel_size": 1,
+    "gpu_memory_utilization": 0.85,
+    "max_model_len": 2048,
+    "dtype": "bfloat16",
+    "enforce_eager": true,
+    "trust_remote_code": true,
+    "api_key": "dummy",
+    "VLLM_USE_FLASHINFER_SAMPLER": "0"
+  },
+  "campaign_concurrency": {
+    "workers": 24,
+    "task_timeout_seconds": 7200,
+    "max_retries": 2
+  },
+  "revision_provenance": {
+    "source": "HF cache refs/main at /data/models/hf_cache",
+    "s1_vllm_logs_available": false,
+    "s1_revision_verifiable": false,
+    "cache_blob_mtimes": "2026-07-18T08:42-08:47Z (this session, re-downloaded)",
+    "classification": "cross-environment independent replication, NOT same-environment replay"
+  }
+}
