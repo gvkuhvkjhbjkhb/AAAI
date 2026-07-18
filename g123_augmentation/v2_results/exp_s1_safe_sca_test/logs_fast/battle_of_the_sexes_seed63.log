@@ -1,0 +1,28 @@
+[vLLM] API mode enabled: Qwen→localhost:8000, GLM→localhost:8001
+
+============================================================
+GAME: battle_of_the_sexes (episodes=30)
+============================================================
+
+--- battle_of_the_sexes seed 63 @ 05:47:09 ---
+  [run]  het_point_sca @ 30ep ...
+  [het_point_sca] warmup=15 split=-2.500 ucb=-2.500 coverage=1.000 -> Gated (point_estimate_coordination)
+  [het_point_sca] total_team=1.7500 commit_team=2.3333 (115s)
+  [run]  het_safe_sca @ 30ep ...
+  [het_safe_sca] warmup=15 split=-2.500 ucb=-2.500 coverage=1.000 -> Gated (coverage_certified_coordination)
+  [het_safe_sca] total_team=1.7833 commit_team=2.4000 (97s)
+  [run]  het_oracle_sca @ 30ep ...
+  [het_oracle_sca] warmup=15 split=-2.500 ucb=-2.500 coverage=1.000 -> Gated (oracle_game_class_for_diagnostic_upper_bound)
+  [het_oracle_sca] total_team=1.8333 commit_team=2.5000 (91s)
+  [run]  het_notom @ 30ep ...
+  [het_notom] payoff=1.3333 team=1.1833 div=0.2289 (23s)
+  [run]  het_gated_atom_talk @ 30ep ...
+  [het_gated_atom_talk] payoff=2.7400 team=2.2833 div=0.0907 (182s)
+  [run]  het_gsaca @ 30ep ...
+  [het_gsaca] detect=coord(oracle=coord,OK) split=-2.500 payoff=2.6800 team=2.2500 div=0.0375 (160s)
+  --- battle_of_the_sexes seed 63 done in 668s ---
+
+============================================================
+Complete: 668s total
+Output: /data/lab/AAAI/g123_augmentation/v2_results/exp_s1_safe_sca_test
+============================================================

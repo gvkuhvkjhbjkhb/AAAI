@@ -76,7 +76,12 @@ def rows_for_policy(data, game: str, policy: str) -> tuple[list[int], list[float
     return seeds, baseline, candidate
 
 
-def aggregate(data, safety_margin: float) -> dict[str, Any]:
+def aggregate(
+    data,
+    safety_margin: float,
+    min_coordination_recovery: float = 0.30,
+    min_coordination_games: int = 2,
+) -> dict[str, Any]:
     per_game: list[dict[str, Any]] = []
     for game in ORDER:
         for policy in POLICIES:
@@ -147,17 +152,34 @@ def aggregate(data, safety_margin: float) -> dict[str, Any]:
         safe_gain = float(np.mean(safe) - baseline_mean)
         recovery.append({
             "game": game,
+            "is_coordination_or_boundary": game in COORD,
             "gated_gain_over_noalign": gated_gain,
             "safe_sca_gain_over_noalign": safe_gain,
             "gain_recovery_fraction": safe_gain / gated_gain if abs(gated_gain) > 1e-12 else None,
         })
 
+    utility_qualified = [
+        row for row in recovery
+        if row["is_coordination_or_boundary"]
+        and row["gated_gain_over_noalign"] > 0
+        and row["gain_recovery_fraction"] is not None
+        and row["gain_recovery_fraction"] >= min_coordination_recovery
+    ]
+    utility_pass = len(utility_qualified) >= min_coordination_games
+
     return {
         "primary_endpoint": "total_horizon_team_payoff_including_warmup",
         "safety_margin": safety_margin,
+        "utility_gate": {
+            "min_coordination_recovery": min_coordination_recovery,
+            "min_coordination_games": min_coordination_games,
+            "qualified_games": [row["game"] for row in utility_qualified],
+            "passed": utility_pass,
+        },
         "per_game_policy": per_game,
         "safety_by_anti_game": safety_by_game,
         "safety_pass_all_anti_games": safety_pass,
+        "method_paper_pass": safety_pass and utility_pass,
         "safe_sca_routing": {
             "n_rows": len(route_rows),
             "anti_false_align": false_align,
@@ -177,6 +199,14 @@ def render_markdown(report: dict[str, Any]) -> str:
     lines.append(f"Primary endpoint: `{report['primary_endpoint']}`.")
     lines.append(f"Safety margin: {report['safety_margin']:.3f}; "
                  f"all anti-coordination games pass: **{report['safety_pass_all_anti_games']}**.")
+    utility = report["utility_gate"]
+    lines.append(
+        "Utility gate: recover at least "
+        f"{utility['min_coordination_recovery']:.0%} of the positive Always-Gated gain in "
+        f"{utility['min_coordination_games']} coordination/boundary games; "
+        f"qualified={utility['qualified_games']}; pass: **{utility['passed']}**."
+    )
+    lines.append(f"Method-paper gate (safety AND utility): **{report['method_paper_pass']}**.")
     lines.append("")
     lines.append("## Paired payoff against NoAlign")
     lines.append("")
@@ -216,12 +246,22 @@ def main() -> None:
     parser.add_argument("--results", type=Path, required=True)
     parser.add_argument("--out", type=Path, help="default: results directory")
     parser.add_argument("--safety-margin", type=float, default=0.10)
+    parser.add_argument("--min-coordination-recovery", type=float, default=0.30)
+    parser.add_argument("--min-coordination-games", type=int, default=2)
     args = parser.parse_args()
     if args.safety_margin < 0:
         parser.error("safety-margin must be non-negative")
+    if not 0 <= args.min_coordination_recovery <= 1:
+        parser.error("min-coordination-recovery must be in [0, 1]")
+    if args.min_coordination_games <= 0:
+        parser.error("min-coordination-games must be positive")
     out = args.out or args.results
     out.mkdir(parents=True, exist_ok=True)
-    report = aggregate(load(args.results), args.safety_margin)
+    report = aggregate(
+        load(args.results), args.safety_margin,
+        min_coordination_recovery=args.min_coordination_recovery,
+        min_coordination_games=args.min_coordination_games,
+    )
     (out / "s1_safe_sca_summary.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     markdown = render_markdown(report)
     (out / "s1_safe_sca_summary.md").write_text(markdown, encoding="utf-8")

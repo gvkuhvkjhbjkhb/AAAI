@@ -1,0 +1,28 @@
+[vLLM] API mode enabled: Qwen→localhost:8000, GLM→localhost:8001
+
+============================================================
+GAME: deadlock (episodes=30)
+============================================================
+
+--- deadlock seed 64 @ 05:24:00 ---
+  [run]  het_safe_sca @ 30ep ...
+  [het_safe_sca] warmup=15 split=0.000 ucb=0.000 coverage=0.500 -> NoAlign (coordination_not_certified)
+  [het_safe_sca] total_team=2.0000 commit_team=2.0000 (26s)
+  [run]  het_oracle_sca @ 30ep ...
+  [het_oracle_sca] warmup=15 split=0.000 ucb=0.000 coverage=0.500 -> NoAlign (oracle_game_class_for_diagnostic_upper_bound)
+  [het_oracle_sca] total_team=2.0000 commit_team=2.0000 (24s)
+  [run]  het_notom @ 30ep ...
+  [het_notom] payoff=1.3067 team=2.0000 div=0.4257 (24s)
+  [run]  het_gated_atom_talk @ 30ep ...
+  [het_gated_atom_talk] payoff=2.1533 team=1.7800 div=0.0875 (191s)
+  [run]  het_gsaca @ 30ep ...
+  [het_gsaca] detect=coord(oracle=anti_coord,MISS) split=0.000 payoff=1.4800 team=2.0000 div=0.3011 (156s)
+  [run]  het_point_sca @ 30ep ...
+  [het_point_sca] warmup=15 split=0.000 ucb=0.000 coverage=0.500 -> Gated (point_estimate_coordination)
+  [het_point_sca] total_team=1.9067 commit_team=1.8133 (108s)
+  --- deadlock seed 64 done in 529s ---
+
+============================================================
+Complete: 529s total
+Output: /data/lab/AAAI/g123_augmentation/v2_results/exp_s1_safe_sca_test
+============================================================

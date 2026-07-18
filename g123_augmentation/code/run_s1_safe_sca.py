@@ -45,6 +45,15 @@ TEST_CELLS = [
     "het_safe_sca",          # proposed label-free method
     "het_oracle_sca",        # marked diagnostic upper bound only
 ]
+LAB_STACK_B_TARGET = {
+    "hardware": "2x NVIDIA RTX 5090 (32GB, Blackwell sm_120)",
+    "vllm": "0.25.1",
+    "pytorch": "2.11.0+cu128",
+    "transformers": "5.14.1",
+    "precision": "bf16",
+    "qwen_endpoint": "GPU0:8000",
+    "glm_endpoint": "GPU1:8001",
+}
 
 
 def shard(items: list[int], n_shards: int) -> list[list[int]]:
@@ -76,6 +85,27 @@ def immutable_json(path: Path, payload: dict) -> None:
     path.write_text(canonical, encoding="utf-8")
 
 
+def require_successful_preflight(output: Path) -> None:
+    """Refuse a GPU launch without a strict, recorded environment check."""
+    manifest_path = output / "ENVIRONMENT_MANIFEST_S1.json"
+    if not manifest_path.exists():
+        raise RuntimeError(
+            f"S1 preflight manifest missing: {manifest_path}. "
+            "Run preflight_s1.py against this output directory first."
+        )
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"Unreadable S1 preflight manifest: {manifest_path}: {exc}") from exc
+    if not manifest.get("preflight_passed"):
+        raise RuntimeError(f"S1 preflight did not pass: {manifest_path}")
+    if manifest.get("allow_version_mismatch"):
+        raise RuntimeError(
+            "S1 preflight used --allow-version-mismatch. "
+            "Do not use this result directory for the preregistered run."
+        )
+
+
 def base_command() -> list[str]:
     return [
         sys.executable, str(RUNNER), "--use_vllm", "--gen_seed_base", "1000",
@@ -99,6 +129,7 @@ def launch(args: argparse.Namespace, *, phase: str, output: Path, cells: list[st
         "top_p": 0.9,
         "latin_square": True,
         "models_het": [QWEN, GLM],
+        "lab_stack_b_target": LAB_STACK_B_TARGET,
         "safe_config_flags": extra,
     }
     commands: list[tuple[int, list[str], Path]] = []
@@ -116,7 +147,7 @@ def launch(args: argparse.Namespace, *, phase: str, output: Path, cells: list[st
             print(" ".join(command))
         return
 
-    output.mkdir(parents=True, exist_ok=True)
+    require_successful_preflight(output)
     immutable_json(output / "CONFIG_SNAPSHOT_S1.json", snapshot)
 
     processes: list[tuple[int, subprocess.Popen, object, Path]] = []

@@ -1,0 +1,28 @@
+[vLLM] API mode enabled: Qwen→localhost:8000, GLM→localhost:8001
+
+============================================================
+GAME: chicken (episodes=30)
+============================================================
+
+--- chicken seed 69 @ 05:24:00 ---
+  [run]  het_point_sca @ 30ep ...
+  [het_point_sca] warmup=15 split=1.676 ucb=2.118 coverage=1.000 -> NoAlign (point_estimate_anti_coordination)
+  [het_point_sca] total_team=2.3600 commit_team=2.4800 (26s)
+  [run]  het_safe_sca @ 30ep ...
+  [het_safe_sca] warmup=15 split=1.676 ucb=2.118 coverage=1.000 -> NoAlign (coordination_not_certified)
+  [het_safe_sca] total_team=2.3600 commit_team=2.4800 (24s)
+  [run]  het_oracle_sca @ 30ep ...
+  [het_oracle_sca] warmup=15 split=1.714 ucb=2.143 coverage=1.000 -> NoAlign (oracle_game_class_for_diagnostic_upper_bound)
+  [het_oracle_sca] total_team=2.3400 commit_team=2.4800 (24s)
+  [run]  het_notom @ 30ep ...
+  [het_notom] payoff=2.6867 team=2.4200 div=0.0357 (24s)
+  [run]  het_gated_atom_talk @ 30ep ...
+  [het_gated_atom_talk] payoff=2.1200 team=2.8800 div=0.3741 (145s)
+  [run]  het_gsaca @ 30ep ...
+  [het_gsaca] detect=anti_coord(oracle=anti_coord,OK) split=1.154 payoff=2.3533 team=2.4200 div=0.0022 (176s)
+  --- chicken seed 69 done in 420s ---
+
+============================================================
+Complete: 420s total
+Output: /data/lab/AAAI/g123_augmentation/v2_results/exp_s1_safe_sca_test
+============================================================

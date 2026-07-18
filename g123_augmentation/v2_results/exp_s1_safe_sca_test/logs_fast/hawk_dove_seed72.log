@@ -1,0 +1,28 @@
+[vLLM] API mode enabled: Qwen→localhost:8000, GLM→localhost:8001
+
+============================================================
+GAME: hawk_dove (episodes=30)
+============================================================
+
+--- hawk_dove seed 72 @ 05:38:36 ---
+  [run]  het_notom @ 30ep ...
+  [het_notom] payoff=1.1667 team=1.2067 div=0.0014 (25s)
+  [run]  het_gated_atom_talk @ 30ep ...
+  [het_gated_atom_talk] payoff=1.9600 team=1.9900 div=0.0202 (190s)
+  [run]  het_gsaca @ 30ep ...
+  [het_gsaca] detect=anti_coord(oracle=anti_coord,OK) split=0.250 payoff=1.0133 team=1.4633 div=0.1857 (145s)
+  [run]  het_point_sca @ 30ep ...
+  [het_point_sca] warmup=15 split=0.758 ucb=1.242 coverage=1.000 -> NoAlign (point_estimate_anti_coordination)
+  [het_point_sca] total_team=1.2300 commit_team=1.2733 (23s)
+  [run]  het_safe_sca @ 30ep ...
+  [het_safe_sca] warmup=15 split=0.741 ucb=1.155 coverage=1.000 -> NoAlign (coordination_not_certified)
+  [het_safe_sca] total_team=1.2433 commit_team=1.2733 (24s)
+  [run]  het_oracle_sca @ 30ep ...
+  [het_oracle_sca] warmup=15 split=0.741 ucb=1.155 coverage=1.000 -> NoAlign (oracle_game_class_for_diagnostic_upper_bound)
+  [het_oracle_sca] total_team=1.2267 commit_team=1.2400 (23s)
+  --- hawk_dove seed 72 done in 431s ---
+
+============================================================
+Complete: 431s total
+Output: /data/lab/AAAI/g123_augmentation/v2_results/exp_s1_safe_sca_test
+============================================================

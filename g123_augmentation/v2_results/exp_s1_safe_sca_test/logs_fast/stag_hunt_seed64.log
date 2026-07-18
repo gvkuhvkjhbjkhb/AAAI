@@ -1,0 +1,28 @@
+[vLLM] API mode enabled: Qwen→localhost:8000, GLM→localhost:8001
+
+============================================================
+GAME: stag_hunt (episodes=30)
+============================================================
+
+--- stag_hunt seed 64 @ 05:40:09 ---
+  [run]  het_safe_sca @ 30ep ...
+  [het_safe_sca] warmup=15 split=-2.000 ucb=-2.000 coverage=0.500 -> Gated (coverage_certified_coordination)
+  [het_safe_sca] total_team=2.9467 commit_team=3.0000 (110s)
+  [run]  het_oracle_sca @ 30ep ...
+  [het_oracle_sca] warmup=15 split=-2.000 ucb=-2.000 coverage=0.750 -> Gated (oracle_game_class_for_diagnostic_upper_bound)
+  [het_oracle_sca] total_team=2.9333 commit_team=3.0000 (107s)
+  [run]  het_notom @ 30ep ...
+  [het_notom] payoff=2.8933 team=2.7933 div=0.2010 (23s)
+  [run]  het_gated_atom_talk @ 30ep ...
+  [het_gated_atom_talk] payoff=3.0000 team=3.0000 div=0.0000 (193s)
+  [run]  het_gsaca @ 30ep ...
+  [het_gsaca] detect=coord(oracle=coord,OK) split=-1.867 payoff=2.9200 team=2.8533 div=0.0790 (170s)
+  [run]  het_point_sca @ 30ep ...
+  [het_point_sca] warmup=15 split=-2.000 ucb=-2.000 coverage=0.750 -> Gated (point_estimate_coordination)
+  [het_point_sca] total_team=2.9200 commit_team=3.0000 (107s)
+  --- stag_hunt seed 64 done in 710s ---
+
+============================================================
+Complete: 710s total
+Output: /data/lab/AAAI/g123_augmentation/v2_results/exp_s1_safe_sca_test
+============================================================
