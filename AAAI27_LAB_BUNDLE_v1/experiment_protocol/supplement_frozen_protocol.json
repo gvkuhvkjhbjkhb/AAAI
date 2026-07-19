@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "campaign": "aaai27_supplemental_controls_v1",
+  "models_het": [
+    "Qwen/Qwen2.5-7B-Instruct",
+    "THUDM/GLM-4-9B-0414"
+  ],
+  "model_revisions": {
+    "Qwen/Qwen2.5-7B-Instruct": "a09a35458c702b33eeacc393d103063234e8bc28",
+    "THUDM/GLM-4-9B-0414": "645b8482494e31b6b752272bf7f7f273ef0f3caf"
+  },
+  "sampling": {
+    "top_p": 0.9,
+    "gen_seed_base": 1000,
+    "horizon": 5,
+    "memory": 2
+  },
+  "execution": {
+    "workers": 32,
+    "task_timeout_seconds": 7200,
+    "max_retries": 2,
+    "latin_square": true
+  },
+  "p3": {
+    "matrix_ids": [
+      "p3_m01", "p3_m02", "p3_m03", "p3_m04",
+      "p3_m05", "p3_m06", "p3_m07", "p3_m08"
+    ],
+    "seeds": [102, 103, 104, 105, 106, 107, 108, 109, 110, 111],
+    "episodes": 30,
+    "registry_sha256": "08899a7c14edb548acda759b2e9d61e232699ffc223d33a88d0b81e40f8d0203"
+  },
+  "source": {
+    "games": [
+      "chicken", "hawk_dove", "deadlock", "stag_hunt",
+      "battle_of_the_sexes", "public_goods"
+    ],
+    "seeds": [82, 83, 84, 85, 86, 87, 88, 89, 90, 91,
+              92, 93, 94, 95, 96, 97, 98, 99, 100, 101],
+    "episodes_default": 30,
+    "episodes_public_goods": 20
+  },
+  "safe_sca": {
+    "warmup_episodes": 15,
+    "tau": 0.1,
+    "confidence": 0.95,
+    "bootstrap_samples": 2000,
+    "min_profile_coverage": 0.125,
+    "min_stratum_observations": 3
+  },
+  "p0": {
+    "name": "same_grid_payoff_in_prompt",
+    "domain": "p3",
+    "new_policy": "het_payoff_prompt",
+    "policies": ["het_notom", "het_gated_atom_talk", "het_safe_sca", "het_payoff_prompt"],
+    "reference_policies": ["het_notom", "het_gated_atom_talk", "het_safe_sca"],
+    "reference_mode": "concurrent_rerun_primary; original_P3_temporal_sensitivity",
+    "new_cells": 320,
+    "confirmatory": true
+  },
+  "p1": {
+    "name": "p3_action_label_permutation",
+    "domain": "p3",
+    "variant": "label_swap",
+    "policies": ["het_notom", "het_gated_atom_talk", "het_safe_sca"],
+    "new_cells": 240,
+    "variant_registry_sha256": "614431f8cad56ba59ca8046d4dc351ff40e401e3723e9122ac12bc57804f87a9",
+    "confirmatory": true
+  },
+  "p2": {
+    "name": "online_teammean_probe",
+    "domains": ["p3", "source"],
+    "cell": "het_bandit_teammean",
+    "arms": ["NoAlign", "Gated"],
+    "bandit_k": 5,
+    "tie_break": "NoAlign",
+    "p3_new_cells": 80,
+    "source_new_cells_optional": 120,
+    "confirmatory_domain": "p3",
+    "source_status": "secondary_optional"
+  },
+  "analysis": {
+    "primary_endpoint": "team_mean_payoff",
+    "bootstrap_samples": 20000,
+    "confidence": 0.95,
+    "p1_normalized_equivalence_margin": 0.10,
+    "p1_min_route_agreement": 0.90,
+    "multiple_testing": "Holm for eight matrix-level secondary tests",
+    "report_all_matrices": true
+  }
+}
