@@ -1,0 +1,346 @@
+{
+  "schema_version": 1,
+  "campaign": "p10_registry_presentation_capability_factorial_v1",
+  "tier": "confirmatory",
+  "scope": "Crossed registry x presentation x model-pair test. Identifies the presentation effect within a registry (reviewer M4) and places the fidelity of a contemporary strong pair on the same scale as the weak pairs (reviewer M11).",
+  "preregistration": {
+    "frozen_before_any_inference": [
+      "design.registries",
+      "design.families",
+      "design.seeds",
+      "design.presentations",
+      "design.relabel_mode",
+      "sampling.*",
+      "legacy_safety.*",
+      "action_safety.*",
+      "analysis.decision_rules",
+      "analysis.equivalence_bound",
+      "analysis.success_requires"
+    ],
+    "primary_endpoint": "fidelity_joint_profile (fraction of committed steps on which BOTH roles play the Eq.(1) target profile)",
+    "secondary_endpoints": [
+      "fidelity_mean_per_role",
+      "commit_minus_warmup_team_mean"
+    ],
+    "clustering_unit": "base matrix id",
+    "interval_read_by_decision_rules": "wild_cluster (Cameron-Gelbach-Miller bootstrap-t)",
+    "note_on_fidelity_definition": "The paper currently reports 4.1% (joint profile) and 0.28 (per-role) as if they were the same quantity (reviewer M3). P10 reports both for every cell, with the denominator stated, and the decision rules read the joint-profile definition only."
+  },
+  "design": {
+    "registries": [
+      "R_rq3_pooled",
+      "R_rq5_pooled"
+    ],
+    "families": [
+      "anti_safe",
+      "anti_tradeoff"
+    ],
+    "n_per_family": null,
+    "seeds": [
+      4100,
+      4101,
+      4102,
+      4103
+    ],
+    "presentations": [
+      "NoAlign",
+      "Advisory",
+      "RoleBound"
+    ],
+    "relabel_mode": "balanced",
+    "gate_routes_to": "RoleBound",
+    "rolebound_source": {
+      "selection_file": "results/p7_realization/P7D_SELECTION.json",
+      "allowed_prompts": [
+        "RoleBoundConfirm",
+        "RoleBoundAcknowledge"
+      ],
+      "expected_protocol_sha256": "090c24fb95da16938b02c78427081a08b1de20932076e5ec4f15cbf53ceafcf0"
+    },
+    "rationale": {
+      "registries": "R_rq3_* is RQ3's own registry, R_rq5_* is RQ5's. Each pooled registry keeps the original 4 matrices per family bit-exact and adds 20 fresh draws from the identical sampler, so G = 24 per family, meeting supplement D's own confirmatory threshold that Table 2 (G = 4) failed.",
+      "presentations": "Advisory is the archived GatedBaseline cue; RoleBound is the presentation P7D froze. No third presentation is introduced.",
+      "relabel_mode": "In anti_safe and anti_tradeoff the Eq.(1) target is always the (A,B) cell, so a positional bias would sit inside the primary endpoint. Balanced relabelling moves the target through all four cells across the four seeds of every matrix."
+    }
+  },
+  "sampling": {
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "horizon": 5,
+    "memory": 2,
+    "warmup_episodes": 8,
+    "commit_episodes": 4,
+    "max_parse_retries": 2,
+    "note": "warmup_episodes x horizon = 40 steps, exactly the min_total_observations the action certificate requires; the warm-up block is shared by every arm in a cell (common random numbers)."
+  },
+  "pilot": {
+    "max_tokens_ladder": [
+      20,
+      64,
+      160,
+      384
+    ],
+    "max_parse_failure_rate": 0.01,
+    "probe_family": "coordination",
+    "note": "max_tokens is a harness parameter, not a treatment. It is frozen per role by the pilot on a coordination-family probe matrix that no analysed family contains, before the campaign starts; the pilot never enters the analysis."
+  },
+  "legacy_safety": {
+    "confidence": 0.95,
+    "bootstrap_samples": 2000,
+    "tau": 0.1,
+    "min_profile_coverage": 0.25,
+    "min_same_observations": 3,
+    "min_different_observations": 3
+  },
+  "action_safety": {
+    "confidence": 0.95,
+    "bootstrap_samples": 4000,
+    "min_total_observations": 40,
+    "min_profile_coverage": 0.25,
+    "team_noninferiority_margin": 0.1,
+    "role_noninferiority_margin": 0.25,
+    "minimum_role_target_reward": 0.25,
+    "max_unilateral_deviation_gain": 0.0
+  },
+  "pairs": [
+    {
+      "pair_id": "weak_mistral_phi",
+      "enabled": true,
+      "label": "Mistral-7B-Instruct-v0.3 x Phi-3.5-mini-instruct (the RQ3/RQ5 pair)",
+      "capability_tier": "weak",
+      "why": "The reference pair. Re-running it under this one harness is what makes the M4 contrast an experiment rather than a comparison of two campaigns that differed in runner, max_tokens and episode split as well as in registry and presentation.",
+      "roles": [
+        {
+          "provider": "vllm",
+          "model": "mistralai/Mistral-7B-Instruct-v0.3",
+          "base_url": "http://127.0.0.1:8002/v1",
+          "api_key_env": "VLLM_API_KEY",
+          "open_weights": true,
+          "hf_repo": "mistralai/Mistral-7B-Instruct-v0.3",
+          "hf_revision": "c170c708c41dac9275d15a8fff4eca08d52bab71",
+          "max_tokens": 20,
+          "limits": {
+            "max_concurrency": 48
+          }
+        },
+        {
+          "provider": "vllm",
+          "model": "microsoft/Phi-3.5-mini-instruct",
+          "base_url": "http://127.0.0.1:8003/v1",
+          "api_key_env": "VLLM_API_KEY",
+          "open_weights": true,
+          "hf_repo": "microsoft/Phi-3.5-mini-instruct",
+          "hf_revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+          "max_tokens": 20,
+          "limits": {
+            "max_concurrency": 48
+          }
+        }
+      ]
+    },
+    {
+      "pair_id": "mid_qwen_glm",
+      "enabled": false,
+      "label": "Qwen2.5-7B-Instruct x GLM-4-9B-0414 (the source pair)",
+      "capability_tier": "mid",
+      "why": "Optional middle rung of the capability ladder. Local weights, so it costs GPU time but no quota.",
+      "roles": [
+        {
+          "provider": "vllm",
+          "model": "Qwen/Qwen2.5-7B-Instruct",
+          "base_url": "http://127.0.0.1:8000/v1",
+          "api_key_env": "VLLM_API_KEY",
+          "open_weights": true,
+          "hf_repo": "Qwen/Qwen2.5-7B-Instruct",
+          "hf_revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+          "max_tokens": 20,
+          "limits": {
+            "max_concurrency": 12
+          }
+        },
+        {
+          "provider": "vllm",
+          "model": "THUDM/GLM-4-9B-0414",
+          "base_url": "http://127.0.0.1:8001/v1",
+          "api_key_env": "VLLM_API_KEY",
+          "open_weights": true,
+          "hf_repo": "THUDM/GLM-4-9B-0414",
+          "hf_revision": "645b8482494e31b6b752272bf7f7f273ef0f3caf",
+          "max_tokens": 20,
+          "limits": {
+            "max_concurrency": 12
+          }
+        }
+      ]
+    },
+    {
+      "pair_id": "strong_free_b",
+      "enabled": false,
+      "label": "gpt-oss-120b x qwen3-32b, both on a free hosted endpoint",
+      "capability_tier": "strong",
+      "why": "The fast free lane: both roles sit on the same free tier with independent per-model daily quotas, so the two roles do not contend and the whole campaign runs unattended without a GPU. Both are open weights, so the reproducibility claim survives: a reviewer re-serves the pinned revisions with vLLM and re-runs offline.",
+      "roles": [
+        {
+          "provider": "groq",
+          "model": "openai/gpt-oss-120b",
+          "base_url": "https://api.groq.com/openai/v1",
+          "api_key_env": "GROQ_API_KEY",
+          "open_weights": true,
+          "hf_repo": "openai/gpt-oss-120b",
+          "hf_revision": null,
+          "max_tokens": 20,
+          "extra_body": {
+            "reasoning_effort": "low"
+          },
+          "limits": {
+            "rpm": 22,
+            "tpm": 6000,
+            "rpd": 14400,
+            "max_concurrency": 4
+          }
+        },
+        {
+          "provider": "groq",
+          "model": "qwen/qwen3-32b",
+          "base_url": "https://api.groq.com/openai/v1",
+          "api_key_env": "GROQ_API_KEY",
+          "open_weights": true,
+          "hf_repo": "Qwen/Qwen3-32B",
+          "hf_revision": null,
+          "max_tokens": 20,
+          "extra_body": {
+            "reasoning_effort": "none"
+          },
+          "limits": {
+            "rpm": 22,
+            "tpm": 6000,
+            "rpd": 14400,
+            "max_concurrency": 4
+          }
+        }
+      ]
+    },
+    {
+      "pair_id": "strong_free_a",
+      "enabled": false,
+      "label": "gpt-oss-120b (Groq) x GLM-4.7 (Cerebras)",
+      "capability_tier": "strong",
+      "why": "The most contemporary free pair, and cross-vendor like the paper's other pairs. Slower lane: the Cerebras free tier is token-per-day bound, so budget roughly 3.8k requests/day on that role.",
+      "roles": [
+        {
+          "provider": "groq",
+          "model": "openai/gpt-oss-120b",
+          "base_url": "https://api.groq.com/openai/v1",
+          "api_key_env": "GROQ_API_KEY",
+          "open_weights": true,
+          "hf_repo": "openai/gpt-oss-120b",
+          "hf_revision": null,
+          "max_tokens": 20,
+          "extra_body": {
+            "reasoning_effort": "low"
+          },
+          "limits": {
+            "rpm": 22,
+            "tpm": 6000,
+            "rpd": 14400,
+            "max_concurrency": 4
+          }
+        },
+        {
+          "provider": "cerebras",
+          "model": "zai-glm-4.7",
+          "base_url": "https://api.cerebras.ai/v1",
+          "api_key_env": "CEREBRAS_API_KEY",
+          "open_weights": true,
+          "hf_repo": "zai-org/GLM-4.7",
+          "hf_revision": null,
+          "max_tokens": 20,
+          "limits": {
+            "rpm": 5,
+            "tpm": 30000,
+            "tpd": 1000000,
+            "max_concurrency": 2
+          }
+        }
+      ]
+    },
+    {
+      "pair_id": "strong_free_c",
+      "enabled": false,
+      "label": "Nemotron-3-Ultra-550B x HY3-295B, both free on an aggregator",
+      "capability_tier": "strong",
+      "why": "The largest free-tier models, for a top rung of the ladder. Most quota-constrained: 20 rpm and a daily cap that only lifts after a one-off credit purchase, so treat this as a screening-tier pair only.",
+      "roles": [
+        {
+          "provider": "openrouter",
+          "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+          "base_url": "https://openrouter.ai/api/v1",
+          "api_key_env": "OPENROUTER_API_KEY",
+          "open_weights": true,
+          "hf_repo": "nvidia/Nemotron-3-Ultra-550B-A55B",
+          "hf_revision": null,
+          "max_tokens": 20,
+          "limits": {
+            "rpm": 18,
+            "rpd": 1000,
+            "max_concurrency": 3
+          }
+        },
+        {
+          "provider": "openrouter",
+          "model": "tencent/hy3:free",
+          "base_url": "https://openrouter.ai/api/v1",
+          "api_key_env": "OPENROUTER_API_KEY",
+          "open_weights": true,
+          "hf_repo": "tencent/HY3",
+          "hf_revision": null,
+          "max_tokens": 20,
+          "limits": {
+            "rpm": 18,
+            "rpd": 1000,
+            "max_concurrency": 3
+          }
+        }
+      ]
+    }
+  ],
+  "models_snapshot": {
+    "date": "2026-07-26",
+    "warning": "Free-tier catalogues and quotas move. Run `python reproduce/p10_check_access.py --protocol protocols/p10_factorial_frozen.json` first: it reports which configured models the key can actually reach, what the provider says the limits are, and resolves each hf_repo to a commit hash. The runner refuses to start until every hf_revision is a real hash, because a hosted endpoint that cannot be re-served offline would cost the paper its reproducibility claim.",
+    "requirement": "Strong pairs MUST be open weights. Closed frontier APIs are rejected by p10_backend on purpose."
+  },
+  "analysis": {
+    "bootstrap_samples": 20000,
+    "confidence": 0.95,
+    "equivalence_bound": 0.1,
+    "min_cell_completion": 0.95,
+    "registry_of_rq3": "R_rq3_pooled",
+    "registry_of_rq5": "R_rq5_pooled",
+    "reference_weak_pair": "weak_mistral_phi",
+    "secondary_metrics": [
+      "fidelity_mean_per_role",
+      "commit_minus_warmup_team_mean"
+    ],
+    "decision_rules": {
+      "presentation_effect_lower_bound": 0.3,
+      "registry_effect_lower_bound": 0.3,
+      "strong_pair_ceiling_lower_bound": 0.9,
+      "strong_pair_gap_upper_bound": 0.9,
+      "rolebound_ceiling_lower_bound": 0.95
+    },
+    "success_requires": [
+      "integrity.all_checks_pass",
+      "unparseable_rate <= 0.01",
+      "positional_bias.max_minus_min_across_target_cells <= 0.15 for every analysed pair and arm",
+      "verdicts.M4_registry_vs_presentation.verdict != INDETERMINATE",
+      "verdicts.M11_capability_vs_interface.overall != NO_DATA"
+    ],
+    "reporting_commitment": "Every verdict this file can emit -- including REGISTRY_EXPLAINS and CAPABILITY_ACCOUNT, both of which force the paper to withdraw or narrow its second contribution -- is written into the protocol before the run, with the exact paper edit it implies. A null or unfavourable outcome is reportable as-is."
+  },
+  "execution": {
+    "workers": 48,
+    "backend": "live",
+    "resumable": true,
+    "parks_on_daily_quota": true
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "campaign": "p6r_mistral_phi_replay_v1",
+  "scope": "Forensic replay of the P6R Mistral-Phi cell under the CURRENT serving config, to decide whether its commit_target_action_rate = 0.041 was behaviour or an environment artifact.",
+  "derived_from": "p6r_cross_pair_gate_mechanism_v1",
+  "primary_endpoint": "anti_safe_gated_commit_target_action_rate",
+
+  "model_pair": {
+    "profile": "mistral_phi",
+    "roles": {
+      "0": "mistralai/Mistral-7B-Instruct-v0.3",
+      "1": "microsoft/Phi-3.5-mini-instruct"
+    },
+    "endpoints": {
+      "0": "http://127.0.0.1:8002/v1",
+      "1": "http://127.0.0.1:8003/v1"
+    },
+    "revisions": {
+      "mistralai/Mistral-7B-Instruct-v0.3": "PIN_EXACT_COMMIT_SHA_BEFORE_RUNNING",
+      "microsoft/Phi-3.5-mini-instruct": "PIN_EXACT_COMMIT_SHA_BEFORE_RUNNING"
+    },
+    "api_key_env": "VLLM_API_KEY",
+    "revision_lock_required": true
+  },
+
+  "p6r": {
+    "registry_seed": 260902,
+    "n_per_family": 4,
+    "families": ["anti_safe", "anti_tradeoff", "coordination", "mixed"],
+    "seeds": [700, 701, 702, 703, 704, 705, 706, 707, 708, 709],
+    "physical_arms": ["NoAlign", "Gated"],
+    "derived_policies": ["LegacyGateFixed", "ActionSafeFixed"],
+    "note": "The two gate policies are read off the SAME sampled trajectories as the physical arms, exactly as in P5/P6; they add no model calls."
+  },
+
+  "sampling": {
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "max_tokens": 12,
+    "generation_seed_base": 61000,
+    "repeat_seed_stride": 1000000,
+    "horizon": 5,
+    "memory": 2,
+    "warmup_episodes": 10,
+    "total_episodes": 30
+  },
+
+  "legacy_safety": {
+    "confidence": 0.95,
+    "bootstrap_samples": 2000,
+    "tau": 0.1,
+    "min_profile_coverage": 0.25,
+    "min_same_observations": 3,
+    "min_different_observations": 3
+  },
+
+  "action_safety": {
+    "confidence": 0.95,
+    "bootstrap_samples": 4000,
+    "min_total_observations": 40,
+    "min_profile_coverage": 0.25,
+    "team_noninferiority_margin": 0.1,
+    "role_noninferiority_margin": 0.25,
+    "minimum_role_target_reward": 0.25,
+    "max_unilateral_deviation_gain": 0.0,
+    "strict_deviation": true,
+    "strict_deviation_note": "The paper adopts the strict form of (C4); it is verdict-neutral on this registry (min anti-tradeoff deviation slack 0.047 > 0), so this flag must not change any route rate. analyze_replay.py asserts that."
+  },
+
+  "utility_model": {
+    "test_time_probe_episodes": 0
+  },
+
+  "execution": {
+    "workers": 64,
+    "request_timeout_seconds": 180,
+    "max_retries": 3,
+    "retry_backoff_seconds": 2.0,
+    "enable_prefix_caching": false,
+    "checkpoint_per_cell": true
+  },
+
+  "preregistered_decision": {
+    "statistic": "matrix-clustered mean of commit_target_action_rate on the Gated arm, anti_safe family, pooled over repeats",
+    "bootstrap_samples": 20000,
+    "confidence": 0.95,
+    "original_value": 0.041,
+    "rules": [
+      {"verdict": "A_environment_artifact", "condition": "mean >= 0.90 and ci_lower > 0.80"},
+      {"verdict": "B_reproduces", "condition": "mean <= 0.20 and ci_upper < 0.30"},
+      {"verdict": "C_inconclusive", "condition": "otherwise"}
+    ],
+    "repeats": [0, 1, 2],
+    "repeats_note": "Repeat 0 runs all four families; repeats 1 and 2 run anti_safe only, to bound run-to-run variance under continuous batching.",
+    "faithfulness_gates": [
+      "ActionSafeFixed permits 40/40 on anti_safe",
+      "ActionSafeFixed permits 0/40 on anti_tradeoff",
+      "LegacyGateFixed permits 0/40 on anti_safe",
+      "zero missing cells",
+      "zero parse failures",
+      "canary hash identical across all repeats"
+    ],
+    "faithfulness_note": "These are authorization-level results that depend only on the payoff table and the warm-up record, not on fidelity. If they fail, the replay is not faithful and its fidelity number must not be used."
+  }
+}
